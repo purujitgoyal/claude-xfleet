@@ -1,0 +1,9 @@
+{
+  "name": "xfleet",
+  "description": "xfleet — multi-repo coordination plugin for Claude Code. Orchestrates parallel agent sessions across repos via Redis Streams: send/listen/ack messages, track concern rounds, and gate phase transitions. Runtime requirements: Redis (default redis://127.0.0.1:6379; override via $XFLEET_REDIS_URL); Python 3 with jsonschema>=4 (used by validate-state.sh on every state-mutating subcommand; override interpreter via $XFLEET_PYTHON); coordination root directory declared via $XFLEET_COORDINATION_ROOT (points to the .xfleet/ tree of the repo under coordination).",
+  "version": "0.1.0",
+  "author": {
+    "name": "purujitgoyal"
+  },
+  "keywords": ["orchestration", "multi-repo", "coordination", "redis", "fleet", "agents"]
+}

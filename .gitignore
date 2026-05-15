@@ -1,0 +1,20 @@
+# Editor backups
+*~
+*.bak
+*.orig
+*.swp
+*.swo
+
+# OS detritus
+.DS_Store
+Thumbs.db
+
+# Node (if test tooling lands later)
+node_modules/
+
+# Python artifacts (if test tooling lands later)
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/

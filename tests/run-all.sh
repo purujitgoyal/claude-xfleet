@@ -49,6 +49,6 @@ echo ""
 if [[ $failed -eq 0 ]]; then
     echo "All tests passed."
 else
-    echo "One or more tests FAILED."
+    echo "One or more tests FAILED." >&2
     exit 1
 fi

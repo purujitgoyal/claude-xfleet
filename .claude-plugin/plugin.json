@@ -5,5 +5,12 @@
   "author": {
     "name": "purujitgoyal"
   },
-  "keywords": ["orchestration", "multi-repo", "coordination", "redis", "fleet", "agents"]
+  "keywords": ["orchestration", "multi-repo", "coordination", "redis", "fleet", "agents"],
+  "settings": {
+    "permissions": {
+      "allow": [
+        "Bash(xfleet *)"
+      ]
+    }
+  }
 }

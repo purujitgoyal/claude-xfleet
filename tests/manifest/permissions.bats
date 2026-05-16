@@ -4,8 +4,6 @@
 #           (2) no Write( or Read( path-scoped rules exist in the allow array
 #               (those belong to the Task 31 setup script, not the manifest).
 
-set -euo pipefail
-
 MANIFEST="${BATS_TEST_DIRNAME}/../../.claude-plugin/plugin.json"
 
 @test "plugin.json exists" {

@@ -1,6 +1,48 @@
 {
   "description": "xfleet hooks",
   "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/tools/xfleet/check-context.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/tools/xfleet/check-context.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/tools/xfleet/check-context.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__serena__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/tools/xfleet/check-context.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "startup",

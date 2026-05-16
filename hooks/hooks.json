@@ -1,0 +1,47 @@
+{
+  "description": "xfleet hooks",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PLUGIN_ROOT/tools/xfleet/hooks/load-grounding.sh --event startup",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PLUGIN_ROOT/tools/xfleet/hooks/load-grounding.sh --event resume",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PLUGIN_ROOT/tools/xfleet/hooks/load-grounding.sh --event clear",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PLUGIN_ROOT/tools/xfleet/hooks/load-grounding.sh --event compact",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

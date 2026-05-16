@@ -26,6 +26,8 @@
 # Operator: _____________  Date: ___________
 # -----------------------------------------------------------
 
+bats_require_minimum_version 1.5.0
+
 HOOK_SCRIPT="${BATS_TEST_DIRNAME}/../../tools/xfleet/hooks/load-grounding.sh"
 
 # ---------------------------------------------------------------------------
@@ -90,12 +92,38 @@ make_repo() {
     local tmpdir
     tmpdir="$(mktemp -d)"
     # No roster.json in tmpdir
-    run bash "${HOOK_SCRIPT}" \
+    run --separate-stderr bash "${HOOK_SCRIPT}" \
         --event startup \
         --coordination-root "${tmpdir}"
     [ "$status" -eq 0 ]
-    # Should warn about missing roster
-    [[ "$output" =~ [Ww]arning ]] || [[ "$stderr" =~ [Ww]arning ]]
+    # Warning goes to stderr via warn()
+    [[ "$stderr" =~ [Ww]arning ]]
+    rm -rf "${tmpdir}"
+}
+
+@test "(a) malformed roster.json: warns loudly and exits 0" {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    printf '{bad json\n' > "${tmpdir}/roster.json"
+
+    run --separate-stderr bash "${HOOK_SCRIPT}" \
+        --event startup \
+        --coordination-root "${tmpdir}"
+    [ "$status" -eq 0 ]
+    [[ "$stderr" =~ [Ww]arning ]]
+    rm -rf "${tmpdir}"
+}
+
+@test "(a) wrong-shape roster.json (object not array): warns loudly and exits 0" {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    printf '{"repo": "x", "slug": "y"}\n' > "${tmpdir}/roster.json"
+
+    run --separate-stderr bash "${HOOK_SCRIPT}" \
+        --event startup \
+        --coordination-root "${tmpdir}"
+    [ "$status" -eq 0 ]
+    [[ "$stderr" =~ [Ww]arning ]]
     rm -rf "${tmpdir}"
 }
 
@@ -151,7 +179,7 @@ make_repo() {
     make_repo "$repo3" "slug3"
     make_roster "${tmpdir}" "$repo1" "slug1" "$repo2" "slug2" "$repo3" "slug3"
 
-    run bash "${HOOK_SCRIPT}" --event startup --coordination-root "${tmpdir}"
+    run --separate-stderr bash "${HOOK_SCRIPT}" --event startup --coordination-root "${tmpdir}"
     [ "$status" -eq 0 ]
 
     # Repos 1 and 3 should appear with markers + content
@@ -164,8 +192,8 @@ make_repo() {
     [[ "$output" =~ "=== ${repo2} ===" ]]
     [[ "$output" =~ "CLAUDE.md content for ${repo2}" ]]
 
-    # Warning about missing grounding for repo2
-    [[ "$output" =~ [Ww]arning ]] || [[ "$stderr" =~ [Ww]arning ]]
+    # Warning about missing grounding for repo2 goes to stderr via warn()
+    [[ "$stderr" =~ [Ww]arning ]]
 
     rm -rf "${tmpdir}"
 }
@@ -364,9 +392,8 @@ make_repo() {
     XFLEET_CONFIG_FILE="$cfg" \
         run bash -c "cd /tmp && bash '${HOOK_SCRIPT}' --event startup"
     [ "$status" -ne 0 ]
-    # Warning should appear in combined output/stderr
-    [[ "$output" =~ [Ww]arning ]] || [[ "$stderr" =~ [Ww]arning ]] || \
-        [[ "$output" =~ [Ee]rror ]] || [[ "$stderr" =~ [Ee]rror ]]
+    # error_exit writes to both stderr and stdout; check stdout (captured in $output)
+    [[ "$output" =~ [Ww]arning ]] || [[ "$output" =~ [Ee]rror ]]
 
     rm -rf "${tmpdir}"
 }
@@ -395,6 +422,11 @@ make_repo() {
 # ---------------------------------------------------------------------------
 
 @test "(g) XFLEET_PYTHON env var takes highest precedence" {
+    local venv_python="$HOME/.config/xfleet/venv/bin/python"
+    if [[ ! -x "$venv_python" ]] || ! "$venv_python" -c "import jsonschema" 2>/dev/null; then
+        skip "requires xfleet venv with jsonschema; run Task 31 setup"
+    fi
+
     local tmpdir
     tmpdir="$(mktemp -d)"
     local repo1="${tmpdir}/repo-a"
@@ -404,9 +436,9 @@ make_repo() {
     local cfg="${tmpdir}/config.json"
     printf '{"coordination_root": "%s", "python_bin": "/usr/bin/false"}\n' "${tmpdir}" > "$cfg"
 
-    # Env var points to venv python with jsonschema
+    # Env var points to venv python with jsonschema; config python_bin (/usr/bin/false) is ignored
     XFLEET_COORDINATION_ROOT="${tmpdir}" \
-    XFLEET_PYTHON="$HOME/.config/xfleet/venv/bin/python" \
+    XFLEET_PYTHON="$venv_python" \
     XFLEET_CONFIG_FILE="$cfg" \
         run bash "${HOOK_SCRIPT}" --event startup
     [ "$status" -eq 0 ]
@@ -415,6 +447,11 @@ make_repo() {
 }
 
 @test "(g) config file python_bin used when XFLEET_PYTHON env var absent" {
+    local venv_python="$HOME/.config/xfleet/venv/bin/python"
+    if [[ ! -x "$venv_python" ]] || ! "$venv_python" -c "import jsonschema" 2>/dev/null; then
+        skip "requires xfleet venv with jsonschema; run Task 31 setup"
+    fi
+
     local tmpdir
     tmpdir="$(mktemp -d)"
     local repo1="${tmpdir}/repo-a"
@@ -423,7 +460,7 @@ make_repo() {
 
     local cfg="${tmpdir}/config.json"
     printf '{"coordination_root": "%s", "python_bin": "%s"}\n' \
-        "${tmpdir}" "$HOME/.config/xfleet/venv/bin/python" > "$cfg"
+        "${tmpdir}" "$venv_python" > "$cfg"
 
     unset XFLEET_PYTHON
     XFLEET_COORDINATION_ROOT="${tmpdir}" XFLEET_CONFIG_FILE="$cfg" \
@@ -445,12 +482,10 @@ make_repo() {
 
     unset XFLEET_PYTHON
     XFLEET_COORDINATION_ROOT="${tmpdir}" XFLEET_CONFIG_FILE="$cfg" \
-        run bash "${HOOK_SCRIPT}" --event startup
+        run --separate-stderr bash "${HOOK_SCRIPT}" --event startup
     # May succeed or fail depending on system python3 having jsonschema;
-    # either way it should not crash with an unbound-variable error.
-    # Exit code 0 or non-zero is acceptable here; what matters is no bash error.
-    [[ "$output" != *"unbound variable"* ]]
-    [[ "$output" != *"unbound variable"* ]]
+    # either way it should not crash with a set -u unbound-variable error.
+    [[ "$stderr" != *"unbound variable"* ]]
 
     rm -rf "${tmpdir}"
 }
@@ -471,8 +506,8 @@ make_repo() {
     XFLEET_CONFIG_FILE="$cfg" \
         run bash "${HOOK_SCRIPT}" --event startup
     [ "$status" -ne 0 ]
-    [[ "$output" =~ [Ww]arning ]] || [[ "$stderr" =~ [Ww]arning ]] || \
-        [[ "$output" =~ [Ee]rror ]] || [[ "$stderr" =~ [Ee]rror ]]
+    # error_exit writes to both stderr and stdout; check stdout (captured in $output)
+    [[ "$output" =~ [Ww]arning ]] || [[ "$output" =~ [Ee]rror ]]
 
     rm -rf "${tmpdir}"
 }

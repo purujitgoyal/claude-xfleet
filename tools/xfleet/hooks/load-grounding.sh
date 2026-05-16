@@ -15,34 +15,12 @@
 # "Errors loudly" means: prominent stderr warning + non-zero exit.
 # SessionStart hooks do NOT block the session — non-zero exit is advisory.
 #
-# Test-override knobs (minimal, for testability):
-#   XFLEET_CONFIG_FILE — override path to config JSON (default: ~/.config/xfleet/config.json)
-#   --coordination-root <path> — CLI override for coordination root (highest priority in tests)
+# Runtime overrides:
+#   XFLEET_CONFIG_FILE — override config JSON path (default: ~/.config/xfleet/config.json);
+#                        accepts any valid path, not limited to test use.
+#   --coordination-root <path> — CLI override for coordination root (highest priority)
 
 set -euo pipefail
-
-# ---------------------------------------------------------------------------
-# Argument parsing
-# ---------------------------------------------------------------------------
-
-EVENT=""
-CLI_COORDINATION_ROOT=""
-
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --event)
-            EVENT="$2"
-            shift 2
-            ;;
-        --coordination-root)
-            CLI_COORDINATION_ROOT="$2"
-            shift 2
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
 
 # ---------------------------------------------------------------------------
 # Utility
@@ -61,6 +39,32 @@ error_exit() {
     printf '%s\n' "$msg"
     exit 1
 }
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+
+EVENT=""
+CLI_COORDINATION_ROOT=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --event)
+            EVENT="${2-}"
+            if [[ -z "${EVENT}" ]]; then
+                error_exit "--event requires an argument."
+            fi
+            shift 2
+            ;;
+        --coordination-root)
+            CLI_COORDINATION_ROOT="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 # ---------------------------------------------------------------------------
 # Config file path (overridable for tests)
@@ -171,11 +175,11 @@ fi
 
 ROSTER="${COORDINATION_ROOT}/roster.json"
 
-if [[ ! -f "${ROSTER}" ]]; then
-    warn "roster.json not found at '${ROSTER}'. No grounding context loaded."
-    # (a) Exit 0 — non-fatal; session proceeds without grounding.
+# ---------------------------------------------------------------------------
+# (e) Helper: write env vars to $CLAUDE_ENV_FILE (called from two exit paths)
+# ---------------------------------------------------------------------------
 
-    # Still export env vars if CLAUDE_ENV_FILE is set (best effort).
+write_env_exports() {
     if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
         {
             printf 'export XFLEET_COORDINATION_ROOT="%s"\n' "${COORDINATION_ROOT}"
@@ -185,7 +189,12 @@ if [[ ! -f "${ROSTER}" ]]; then
             fi
         } >> "${CLAUDE_ENV_FILE}"
     fi
+}
 
+if [[ ! -f "${ROSTER}" ]]; then
+    warn "roster.json not found at '${ROSTER}'. No grounding context loaded."
+    # (a) Exit 0 — non-fatal; session proceeds without grounding.
+    write_env_exports
     exit 0
 fi
 
@@ -194,7 +203,19 @@ fi
 # Roster schema: array of {"repo": "<path>", "slug": "<slug>"}
 # ---------------------------------------------------------------------------
 
-repo_count="$(jq 'length' "${ROSTER}")"
+# Guard: validate roster.json is parseable JSON before any indexing.
+if ! repo_count="$(jq 'length' "${ROSTER}" 2>/dev/null)"; then
+    warn "roster.json at '${ROSTER}' is not valid JSON. No grounding context loaded."
+    write_env_exports
+    exit 0
+fi
+
+# Guard: roster.json must be a JSON array (not an object or scalar).
+if ! jq -e 'type == "array"' "${ROSTER}" > /dev/null 2>&1; then
+    warn "roster.json at '${ROSTER}' is not a JSON array. No grounding context loaded."
+    write_env_exports
+    exit 0
+fi
 
 for (( i = 0; i < repo_count; i++ )); do
     repo_path="$(jq -r --argjson i "$i" '.[$i].repo' "${ROSTER}")"
@@ -221,18 +242,7 @@ for (( i = 0; i < repo_count; i++ )); do
     fi
 done
 
-# ---------------------------------------------------------------------------
 # (e) Export env vars to $CLAUDE_ENV_FILE
-# ---------------------------------------------------------------------------
-
-if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
-    {
-        printf 'export XFLEET_COORDINATION_ROOT="%s"\n' "${COORDINATION_ROOT}"
-        printf 'export XFLEET_PYTHON="%s"\n' "${RESOLVED_PYTHON}"
-        if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-            printf 'export PATH="%s/bin:${PATH}"\n' "${CLAUDE_PLUGIN_ROOT}"
-        fi
-    } >> "${CLAUDE_ENV_FILE}"
-fi
+write_env_exports
 
 exit 0

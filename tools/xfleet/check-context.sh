@@ -2,6 +2,8 @@
 # check-context.sh — PostToolUse hook helper for context-window monitoring.
 #
 # STUB: exits 0 with no output.
-# Real threshold-gated logic (token counting, /check-context invocation,
-# configurable thresholds, size-gating for the Read matcher) lands in Task 30.
+# Drains stdin so the CC hook runner does not get SIGPIPE/EPIPE when it writes
+# the JSON payload to this script's stdin pipe. Task 30 will replace the drain
+# with actual payload consumption (e.g. PAYLOAD=$(cat)) and real logic.
 set -euo pipefail
+exec < /dev/null

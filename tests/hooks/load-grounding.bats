@@ -513,6 +513,11 @@ make_repo() {
 }
 
 @test "(g) XFLEET_PYTHON exported to CLAUDE_ENV_FILE" {
+    local venv_python="$HOME/.config/xfleet/venv/bin/python"
+    if [[ ! -x "$venv_python" ]] || ! "$venv_python" -c "import jsonschema" 2>/dev/null; then
+        skip "requires xfleet venv with jsonschema; run Task 31 setup"
+    fi
+
     local tmpdir env_file
     tmpdir="$(mktemp -d)"
     env_file="${tmpdir}/env_file"
@@ -522,7 +527,7 @@ make_repo() {
     make_roster "${tmpdir}" "$repo1" "sla"
 
     XFLEET_COORDINATION_ROOT="${tmpdir}" \
-    XFLEET_PYTHON="$HOME/.config/xfleet/venv/bin/python" \
+    XFLEET_PYTHON="$venv_python" \
     CLAUDE_ENV_FILE="$env_file" \
         run bash "${HOOK_SCRIPT}" --event startup
     [ "$status" -eq 0 ]

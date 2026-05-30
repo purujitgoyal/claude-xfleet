@@ -22,8 +22,8 @@ the plugin's BATS suite. A human runs the steps below against a sample wave.
    **JUDGMENT** finding: "is this a product call or convenience?"
 
 3. **Graceful degradation.** When the `## Decisions Log` section is absent
-   and no prior `prd-review-*.md` files match the glob, the review proceeds
-   with an empty `prior_decisions` block — no error, no block.
+   and no prior `prd-review-{slug}*.md` files match the glob, the review
+   proceeds with an empty `prior_decisions` block — no error, no block.
 
 ## Preconditions
 
@@ -59,13 +59,16 @@ Create a throwaway PRD (any path; e.g. `/tmp/sample-wave.md`) containing:
   - "Invoice and PO get the new validation; defer receipt to wave-2."
   - "Leave the legacy webhook alone."
 
-To also exercise source 2 of the prior-decisions block, optionally drop a
-prior findings file at
+To exercise source 2 of the prior-decisions block (the glob path corrected in
+this task), drop a prior findings file at
 `~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave.md`
 (slug = PRD filename minus date prefix and `.md`) — this is the same
 `reviews/` directory the skill writes its own findings to. The glob
 `prd-review-sample-wave*.md` also picks up re-review suffixes
-(`-2.md`, `-3.md`).
+(`-2.md`, `-3.md`). Give this fixture a recognizable prior finding (e.g. an
+`F-9` referencing a settled boundary) so Step 7 can confirm it was pulled in.
+**Step 7 below makes exercising source 2 mandatory, not optional** — it is
+the path corrected in this task and must be verified working.
 
 ## Steps
 
@@ -92,10 +95,11 @@ prior findings file at
 
 5. **Verify asymmetry findings surface (Check 5).** In the boundaries dim
    output (and the final findings file's Boundaries section), confirm at
-   least one **JUDGMENT**-tagged finding for each narrowing statement in the
-   fixture, phrased as the product-call-vs-convenience question and naming
-   the sibling surface left behind (e.g., receipt left out while invoice/PO
-   are in scope).
+   least one `JUDGMENT`-tagged finding with `subcategory: ASSUMPTION` for
+   each narrowing statement in the fixture, phrased as the
+   product-call-vs-convenience question and naming the sibling surface left
+   behind (e.g., receipt left out while invoice/PO are in scope). A
+   `JUDGMENT` finding with the wrong subcategory does not count as a pass.
 
 6. **Verify graceful degradation.** Run `/prd-review` against a second PRD
    that has **no** `## Decisions Log` and whose slug has **no** matching
@@ -104,14 +108,28 @@ prior findings file at
    an empty/omitted `prior_decisions` block and no error about a missing
    section or empty glob.
 
+7. **Verify source 2 (prior findings glob) — REQUIRED.** With the prior
+   findings fixture `~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave.md`
+   in place (from the fixture section), re-run `/prd-review /tmp/sample-wave.md`.
+   In the skill's trace, confirm the glob
+   `~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave*.md` matched
+   that file and that its recognizable prior finding (e.g. `F-9`) appears in
+   the assembled `prior_decisions` block — and therefore in the dim-agent
+   dispatch prompts (Step 3). This is the path corrected in this task; it must
+   be demonstrated working, not assumed. (Bonus: drop a second file
+   `prd-review-sample-wave-2.md` and confirm the trailing-`*` glob pulls in
+   both.)
+
 ## Expected outcome
 
 - The `prior_decisions` block appears in every dim-agent dispatch prompt
   (Step 3) and carries the skip/reference instruction.
 - Dims do not re-raise decisions already settled in the Decisions Log.
-- The boundaries dim emits JUDGMENT asymmetry findings for the fixture's
-  narrowing statements (Step 5).
+- The boundaries dim emits `JUDGMENT` + `subcategory: ASSUMPTION` asymmetry
+  findings for the fixture's narrowing statements (Step 5).
 - The no-Decisions-Log / no-prior-findings run completes cleanly (Step 6).
+- The prior-findings glob pulls the `reviews/prd-review-sample-wave*.md`
+  fixture (incl. `-2` suffix) into `prior_decisions` (Step 7).
 
 Record the actual findings file path and the observed dim-agent prompts as
 evidence. Do not record a pass without inspecting the prompts and findings —

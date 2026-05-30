@@ -153,10 +153,20 @@ assert_doc_heading() {
     done
 }
 
-@test "no skill still carries the forthcoming; Task 13 qualifier" {
+@test "no skill's design-principles ref still carries the forthcoming qualifier" {
+    # Robust to the ORIGINAL wrapped form: 8 of the 9 skills split the qualifier
+    # across two lines as "(forthcoming;\n  Task 13)". A line-based
+    # grep -Fq "forthcoming; Task 13" would MISS that wrapped form. The token
+    # "forthcoming" was always on the SAME line as "design-principles.md" though,
+    # so we assert no single line contains BOTH. This also avoids false positives
+    # from the legitimate cluster-5 checklist-gate "forthcoming" usages in
+    # phase-repo-spec/finalize-spec, which never mention design-principles.md.
     for s in "${SKILLS[@]}"; do
-        if grep -Fq "forthcoming; Task 13" "$(skill_path "$s")"; then
-            echo "stale forthcoming qualifier in $s"
+        local f
+        f="$(skill_path "$s")"
+        [ -f "$f" ] || { echo "skill file not found: $s"; return 1; }
+        if grep -E "design-principles\\.md.*forthcoming" "$f"; then
+            echo "stale forthcoming qualifier on design-principles ref in $s"
             return 1
         fi
     done
@@ -164,7 +174,10 @@ assert_doc_heading() {
 
 @test "no skill still carries once-it-lands future-tense framing" {
     for s in "${SKILLS[@]}"; do
-        if grep -Fq "once it lands" "$(skill_path "$s")"; then
+        local f
+        f="$(skill_path "$s")"
+        [ -f "$f" ] || { echo "skill file not found: $s"; return 1; }
+        if grep -Fq "once it lands" "$f"; then
             echo "stale 'once it lands' framing in $s"
             return 1
         fi

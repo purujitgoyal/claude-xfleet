@@ -15,7 +15,7 @@
 >
 > Sibling docs in `shared/`: `messaging.md` (wire-message taxonomy),
 > `state-schema.md` (forthcoming, Task 17), and a future `reviewer-contract.md`.
-> Coordination paths use `$XFLEET_COORDINATION_ROOT/...` notation throughout —
+> Coordination path notation follows `$XFLEET_COORDINATION_ROOT/...` (SC-2 G1) —
 > never hardcoded repo paths.
 
 Inaugural principles: **F-35** (skills are the source of truth) and **F-36**

@@ -10,7 +10,9 @@ Operator/CI-run, not session-run.
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
+# lib/ -> xfleet/ -> tools/ -> repo root
+ROOT = Path(__file__).resolve().parents[3]
+assert ROOT.name == "claude-xfleet", f"unexpected repo root: {ROOT}"
 SCHEMA = ROOT / "tools" / "xfleet" / "state-schema.json"
 DOC = ROOT / "shared" / "state-schema.md"
 

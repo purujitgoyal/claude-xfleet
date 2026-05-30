@@ -170,7 +170,7 @@ edit by hand — run `tools/xfleet/gen-state-schema-doc.sh` to regenerate.
 | `escalation_log[].source_worker` | string | yes | Worker short-name that raised the escalation. |
 | `escalation_log[].reason` | string | yes | The --reason value (e.g. breaking, plan-deviation, judgment-finding). |
 | `escalation_log[].path` | string | yes | Path to the escalation message body under $XFLEET_COORDINATION_ROOT. |
-| `escalation_log[].priority` | string | yes | Routing class derived from reason (e.g. urgent, non-urgent). |
+| `escalation_log[].priority` | string | yes | Routing class derived from reason; one of `urgent` or `non-urgent` per messaging.md section (c). |
 | `escalation_log[].received_at` | string | yes | ISO-8601 timestamp the escalation was received. |
 | `escalation_log[].surfaced_at` | string | yes | ISO-8601 timestamp the escalation was surfaced to the human. |
 | `escalation_log[].resolved_at` | string \| null | yes | ISO-8601 timestamp the escalation was resolved, or null if still open. |

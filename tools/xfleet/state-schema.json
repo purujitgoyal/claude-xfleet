@@ -4,10 +4,6 @@
   "title": "xfleet state-file schema",
   "description": "Canonical SHAPE contract for the two xfleet state files under $XFLEET_COORDINATION_ROOT/state/. The $def 'orchestrator' validates _orchestrator.json (orchestrator-only writes); the $def 'worker' validates {worker}.json (worker-only writes). Prose (lifecycle, cross-field invariants, writer ownership) lives in shared/state-schema.md; its Field Reference table is generated from this file. Every property carries a description: the doc generator and the Task-17b drift detector both depend on it.",
   "$defs": {
-    "iso8601": {
-      "type": "string",
-      "description": "ISO-8601 UTC timestamp, e.g. 2026-05-30T10:45:00Z."
-    },
     "orchestrator": {
       "type": "object",
       "title": "_orchestrator.json",
@@ -267,7 +263,7 @@
               },
               "priority": {
                 "type": "string",
-                "description": "Routing class derived from reason (e.g. urgent, non-urgent)."
+                "description": "Routing class derived from reason; one of `urgent` or `non-urgent` per messaging.md section (c)."
               },
               "received_at": {
                 "type": "string",
@@ -346,10 +342,13 @@
         },
         "context_pct": {
           "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
           "description": "Most recent context-window usage reading, 0-100. Drives warn/compact transitions."
         },
         "review_revision_count": {
           "type": "integer",
+          "minimum": 0,
           "description": "Number of review/revision rounds completed in the current phase. Resets to 0 on phase entry."
         },
         "findings_status": {

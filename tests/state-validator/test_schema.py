@@ -206,6 +206,16 @@ def run_cases():
     bad["context_pct"] = "37"
     check("(e2) wrong type for context_pct (string) rejected", not is_valid(worker, bad))
 
+    # (e3) context_pct above max (150) -> fails
+    bad = dict(VALID_WORKER)
+    bad["context_pct"] = 150
+    check("(e3) context_pct above maximum (150) rejected", not is_valid(worker, bad))
+
+    # (e4) context_pct below min (-1) -> fails
+    bad = dict(VALID_WORKER)
+    bad["context_pct"] = -1
+    check("(e4) context_pct below minimum (-1) rejected", not is_valid(worker, bad))
+
     # (f) missing schema_version -> fails (both objects)
     bad = dict(VALID_ORCHESTRATOR)
     del bad["schema_version"]

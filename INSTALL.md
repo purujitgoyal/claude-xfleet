@@ -21,11 +21,11 @@ Before using xfleet subcommands, ensure these are available in your environment:
 
 **Redis**: Must be reachable at `$XFLEET_REDIS_URL`. Verify with `redis-cli -u "$XFLEET_REDIS_URL" ping`.
 
-**Python + jsonschema**: Used by `validate-state.sh` on every state-mutating subcommand. Install via `pip install jsonschema`.
+**Python + jsonschema**: Used by `validate-state.sh` on every state-mutating subcommand. Install via `pip install jsonschema`. Verify with `"$XFLEET_PYTHON" -c "import jsonschema; print(jsonschema.__version__)"`.
 
 **Coordination root**: `$XFLEET_COORDINATION_ROOT` must point to the `.xfleet/` directory tree of the repo under coordination. This variable is required — no subcommand will work without it.
 
-For one-time coordination-root initialization and full setup instructions, see `SETUP.md` (provided by Task 31 — not yet shipped). That guide covers `setup-coordination-root.sh`, Redis connectivity checks, and exporting config for session discovery.
+For one-time coordination-root initialization and full setup instructions, see `SETUP.md`. That guide covers `setup-coordination-root.sh`, Redis connectivity checks, and exporting config for session discovery.
 
 ## Versioning
 

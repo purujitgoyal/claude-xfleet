@@ -15,8 +15,11 @@ xfleet solves the "N repos, N Claude sessions" problem: when a task spans multip
 ## Install
 
 ```
-claude plugin install xfleet@<marketplace>
+/plugin marketplace add purujitgoyal/claude-xfleet
+/plugin install xfleet
 ```
+
+See [INSTALL.md](INSTALL.md) for full install steps and prerequisites.
 
 Then run the setup script to verify connectivity and initialize the coordination root:
 

@@ -51,11 +51,10 @@ INSTALL_MD="${BATS_TEST_DIRNAME}/../../INSTALL.md"
     [ "$output" != "null" ]
 }
 
-@test "marketplace owner.name is present and non-empty" {
+@test "marketplace owner.name is purujitgoyal" {
     run jq -r '.owner.name' "${MARKETPLACE}"
     [ "$status" -eq 0 ]
-    [ -n "$output" ]
-    [ "$output" != "null" ]
+    [ "$output" = "purujitgoyal" ]
 }
 
 # --- plugins array -----------------------------------------------------------
@@ -78,11 +77,12 @@ INSTALL_MD="${BATS_TEST_DIRNAME}/../../INSTALL.md"
     [ "$output" = "./" ]
 }
 
-@test "plugins[0].description is present and non-empty" {
+@test "plugins[0].description contains a distinctive xfleet token" {
     run jq -r '.plugins[0].description' "${MARKETPLACE}"
     [ "$status" -eq 0 ]
     [ -n "$output" ]
     [ "$output" != "null" ]
+    echo "$output" | grep -Eq "xfleet|Redis"
 }
 
 @test "plugins[0].category is present and non-empty" {
@@ -92,11 +92,10 @@ INSTALL_MD="${BATS_TEST_DIRNAME}/../../INSTALL.md"
     [ "$output" != "null" ]
 }
 
-@test "plugins[0].homepage is present and non-empty" {
+@test "plugins[0].homepage is the canonical repo URL" {
     run jq -r '.plugins[0].homepage' "${MARKETPLACE}"
     [ "$status" -eq 0 ]
-    [ -n "$output" ]
-    [ "$output" != "null" ]
+    [ "$output" = "https://github.com/purujitgoyal/claude-xfleet" ]
 }
 
 # --- cross-file consistency: marketplace plugin name matches plugin.json name -

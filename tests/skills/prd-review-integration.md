@@ -61,9 +61,11 @@ Create a throwaway PRD (any path; e.g. `/tmp/sample-wave.md`) containing:
 
 To also exercise source 2 of the prior-decisions block, optionally drop a
 prior findings file at
-`~/merlin-ai/docs/superpowers/xfleet/sample-wave/prd-review-sample-wave.md`
-(slug = PRD filename minus date prefix and `.md`). This directory does not
-exist by default — creating it is part of exercising source 2.
+`~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave.md`
+(slug = PRD filename minus date prefix and `.md`) — this is the same
+`reviews/` directory the skill writes its own findings to. The glob
+`prd-review-sample-wave*.md` also picks up re-review suffixes
+(`-2.md`, `-3.md`).
 
 ## Steps
 
@@ -72,7 +74,7 @@ exist by default — creating it is part of exercising source 2.
 
 2. **Verify the prior-decisions block is assembled (Step 2.5).** In the
    skill's trace, confirm it read the PRD's `## Decisions Log` and globbed
-   `~/merlin-ai/docs/superpowers/xfleet/sample-wave/prd-review-*.md`.
+   `~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave*.md`.
    Confirm `D-1` (and any prior `F-N` from the optional findings file)
    appears in the assembled `prior_decisions` text.
 
@@ -97,10 +99,10 @@ exist by default — creating it is part of exercising source 2.
 
 6. **Verify graceful degradation.** Run `/prd-review` against a second PRD
    that has **no** `## Decisions Log` and whose slug has **no** matching
-   `prd-review-*.md` files (and whose `xfleet/{slug}/` directory does not
-   exist). Confirm the review completes normally with an empty/omitted
-   `prior_decisions` block and no error about a missing section, missing
-   file, or missing directory.
+   `~/merlin-ai/docs/superpowers/reviews/prd-review-{slug}*.md` files (a
+   first review of a fresh slug). Confirm the review completes normally with
+   an empty/omitted `prior_decisions` block and no error about a missing
+   section or empty glob.
 
 ## Expected outcome
 

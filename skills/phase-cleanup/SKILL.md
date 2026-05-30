@@ -116,6 +116,12 @@ for f in "$XFLEET_COORDINATION_ROOT"/state/*.json(N); do
   WORKERS+=("$name")
   REPO_PATHS[$name]="$(jq -r '.repo_path // empty' "$f")"
 done
+
+# Orchestrator repo path (for its own handoff sweep below).
+# repo_path was written by the orchestrator at /xfleet:orchestrator startup.
+# Guarded: empty if the file or field is absent, so the orch sweep skips
+# gracefully rather than running against an undefined/empty path.
+ORCH_REPO_PATH="$(jq -r '.repo_path // empty' "$XFLEET_COORDINATION_ROOT/state/_orchestrator.json" 2>/dev/null)"
 ```
 
 ## Handoff Sweep (xfleet-prefixed, session-scoped)
@@ -129,7 +135,7 @@ For each worker in `WORKERS`:
 - `--apply`: delete matches.
 - DRY-RUN: list matches prefixed with `[dry-run] would remove:`.
 
-Also sweep the orchestrator's own handoffs at `${ORCH_REPO_PATH}/docs/superpowers/handoffs/` with the same filter (the orchestrator's `repo_path` from `$XFLEET_COORDINATION_ROOT/state/_orchestrator.json`).
+Also sweep the orchestrator's own handoffs at `${ORCH_REPO_PATH}/docs/superpowers/handoffs/` with the same filter (`ORCH_REPO_PATH` is assigned in the Session Context block above). If `ORCH_REPO_PATH` is empty (no `_orchestrator.json` or no `repo_path` field) or the dir doesn't exist, skip the orch sweep with a `[skipped]` line.
 
 ```bash
 # Pseudocode for each target dir $DIR:

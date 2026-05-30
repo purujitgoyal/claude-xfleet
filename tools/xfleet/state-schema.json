@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xfleet/state-schema.json",
+  "title": "xfleet state-file schema",
+  "description": "Canonical SHAPE contract for the two xfleet state files under $XFLEET_COORDINATION_ROOT/state/. The $def 'orchestrator' validates _orchestrator.json (orchestrator-only writes); the $def 'worker' validates {worker}.json (worker-only writes). Prose (lifecycle, cross-field invariants, writer ownership) lives in shared/state-schema.md; its Field Reference table is generated from this file. Every property carries a description: the doc generator and the Task-17b drift detector both depend on it.",
+  "$defs": {
+    "iso8601": {
+      "type": "string",
+      "description": "ISO-8601 UTC timestamp, e.g. 2026-05-30T10:45:00Z."
+    },
+    "orchestrator": {
+      "type": "object",
+      "title": "_orchestrator.json",
+      "description": "Orchestrator-private runtime state, written only by the orchestrator session and read only by it. Lives at $XFLEET_COORDINATION_ROOT/state/_orchestrator.json. Survives /compact on disk; created lazily on first use.",
+      "additionalProperties": false,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "type": "string",
+          "description": "State-file schema version (SC-6). Always the string \"1\" for this revision. The Task-18 validator and Task-19 migration helper key off this field; a missing or mismatched value is rejected."
+        },
+        "cycles": {
+          "type": "integer",
+          "description": "Count of approval-gate re-open cycles in this session. Incremented each time the human requests changes at a phase approval gate; drives convergence warnings."
+        },
+        "last_all_idle_notify": {
+          "type": ["string", "null"],
+          "description": "ISO-8601 timestamp of the most recent \"all workers idle\" Slack prompt, or null if never sent. Rate-limits re-sends of the all-idle nudge."
+        },
+        "last_round5_pause": {
+          "type": ["string", "null"],
+          "description": "ISO-8601 timestamp of the most recent round-5 hard-stop force-escalation pause, or null if never triggered. Rate-limits the round-5 disagreement flow."
+        },
+        "phase_emissions": {
+          "type": "object",
+          "description": "Map of phase name -> signal name -> emission record, tracking which gated phase signals the orchestrator has emitted (and whether human-approved). Arbitrary phase and signal names are allowed as map keys; the value object is strict.",
+          "additionalProperties": {
+            "type": "object",
+            "description": "Map of signal name -> emission record for one phase.",
+            "additionalProperties": {
+              "type": "object",
+              "description": "A single gated-emission record for one (phase, signal) pair.",
+              "additionalProperties": false,
+              "required": ["approved_by_human", "sent_at", "sent_to", "emission_id"],
+              "properties": {
+                "approved_by_human": {
+                  "type": "boolean",
+                  "description": "Whether a human approved this emission at the phase gate (F-17)."
+                },
+                "sent_at": {
+                  "type": "string",
+                  "description": "ISO-8601 timestamp at which the signal was emitted."
+                },
+                "sent_to": {
+                  "type": "array",
+                  "description": "Worker short-names the signal was sent to.",
+                  "items": {
+                    "type": "string",
+                    "description": "A recipient worker short-name."
+                  }
+                },
+                "emission_id": {
+                  "type": "string",
+                  "description": "Unique id for this emission; correlates with the emission_log entry."
+                }
+              }
+            }
+          }
+        },
+        "emission_log": {
+          "type": "array",
+          "description": "Append-only log of every gated-emission attempt (successful or not), for audit.",
+          "items": {
+            "type": "object",
+            "description": "One emission-attempt record.",
+            "additionalProperties": false,
+            "required": ["phase", "signal", "attempted_at", "approved_by_human", "emission_id", "outcome"],
+            "properties": {
+              "phase": {
+                "type": "string",
+                "description": "Phase the emission was attempted for."
+              },
+              "signal": {
+                "type": "string",
+                "description": "Signal name attempted (e.g. phase-complete)."
+              },
+              "attempted_at": {
+                "type": "string",
+                "description": "ISO-8601 timestamp of the attempt."
+              },
+              "approved_by_human": {
+                "type": "boolean",
+                "description": "Whether the attempt was human-approved at the gate."
+              },
+              "emission_id": {
+                "type": "string",
+                "description": "Unique id correlating with the phase_emissions record."
+              },
+              "outcome": {
+                "type": "string",
+                "description": "Result of the attempt (e.g. sent, blocked, deferred)."
+              }
+            }
+          }
+        },
+        "human_engaged": {
+          "type": "object",
+          "description": "Whether a human is actively engaged in the session. Cross-field invariant (sync-mechanism ADR): active=true iff `xfleet engage` was called OR a directive was dispatched; cleared by `xfleet disengage`.",
+          "additionalProperties": false,
+          "required": ["active", "concern_id", "set_at", "reason"],
+          "properties": {
+            "active": {
+              "type": "boolean",
+              "description": "True when a human is engaged. Auto-set true on directive dispatch (cluster 4a); never auto-fired by escalation arrival."
+            },
+            "concern_id": {
+              "type": ["string", "null"],
+              "description": "Concern id the human engagement is scoped to, or null if not concern-scoped."
+            },
+            "set_at": {
+              "type": ["string", "null"],
+              "description": "ISO-8601 timestamp the engagement was set, or null when inactive."
+            },
+            "reason": {
+              "type": ["string", "null"],
+              "description": "Human-readable reason engagement was set, or null when inactive."
+            }
+          }
+        },
+        "completion_log": {
+          "type": "array",
+          "description": "Append-only log of phase-completion evaluations, recording which workers/signals were still missing at each check.",
+          "items": {
+            "type": "object",
+            "description": "One completion-evaluation record.",
+            "additionalProperties": false,
+            "required": ["evaluated_at", "trigger_msg_type", "outcome", "missing_workers", "missing_signals"],
+            "properties": {
+              "evaluated_at": {
+                "type": "string",
+                "description": "ISO-8601 timestamp of the evaluation."
+              },
+              "trigger_msg_type": {
+                "type": "string",
+                "description": "Inbound message type that triggered the evaluation (e.g. phase-complete)."
+              },
+              "outcome": {
+                "type": "string",
+                "description": "Result of the evaluation (e.g. complete, incomplete)."
+              },
+              "missing_workers": {
+                "type": "array",
+                "description": "Worker short-names that had not yet reported for the phase.",
+                "items": {
+                  "type": "string",
+                  "description": "A missing worker short-name."
+                }
+              },
+              "missing_signals": {
+                "type": "array",
+                "description": "Signal names still outstanding for the phase.",
+                "items": {
+                  "type": "string",
+                  "description": "A missing signal name."
+                }
+              }
+            }
+          }
+        },
+        "directive_log": {
+          "type": "array",
+          "description": "Append-only log of directives the orchestrator dispatched to workers.",
+          "items": {
+            "type": "object",
+            "description": "One directive-dispatch record.",
+            "additionalProperties": false,
+            "required": ["directive_id", "target", "concern_id", "scope", "expected_action", "dispatched_at", "response_status"],
+            "properties": {
+              "directive_id": {
+                "type": "string",
+                "description": "Unique id for the directive."
+              },
+              "target": {
+                "type": "string",
+                "description": "Worker short-name the directive was dispatched to."
+              },
+              "concern_id": {
+                "type": ["string", "null"],
+                "description": "Concern id the directive addresses, or null if not concern-driven."
+              },
+              "scope": {
+                "type": "string",
+                "description": "Scope/subject of the directive."
+              },
+              "expected_action": {
+                "type": "string",
+                "description": "Action the orchestrator expects the worker to take."
+              },
+              "dispatched_at": {
+                "type": "string",
+                "description": "ISO-8601 timestamp the directive was dispatched."
+              },
+              "response_status": {
+                "type": "string",
+                "description": "Current status of the worker's response (e.g. pending, acked, done)."
+              }
+            }
+          }
+        },
+        "task_log": {
+          "type": "array",
+          "description": "Append-only log of tasks the orchestrator dispatched to workers.",
+          "items": {
+            "type": "object",
+            "description": "One task-dispatch record.",
+            "additionalProperties": false,
+            "required": ["task_id", "target", "task_kind", "dispatched_at", "response_status"],
+            "properties": {
+              "task_id": {
+                "type": "string",
+                "description": "Unique id for the task."
+              },
+              "target": {
+                "type": "string",
+                "description": "Worker short-name the task was dispatched to."
+              },
+              "task_kind": {
+                "type": "string",
+                "description": "Category of task dispatched."
+              },
+              "dispatched_at": {
+                "type": "string",
+                "description": "ISO-8601 timestamp the task was dispatched."
+              },
+              "response_status": {
+                "type": "string",
+                "description": "Current status of the worker's response (e.g. pending, done)."
+              }
+            }
+          }
+        },
+        "escalation_log": {
+          "type": "array",
+          "description": "Append-only log of escalations received from workers and their surfacing/resolution lifecycle.",
+          "items": {
+            "type": "object",
+            "description": "One escalation record.",
+            "additionalProperties": false,
+            "required": ["escalation_id", "source_worker", "reason", "path", "priority", "received_at", "surfaced_at", "resolved_at"],
+            "properties": {
+              "escalation_id": {
+                "type": "string",
+                "description": "Unique id for the escalation."
+              },
+              "source_worker": {
+                "type": "string",
+                "description": "Worker short-name that raised the escalation."
+              },
+              "reason": {
+                "type": "string",
+                "description": "The --reason value (e.g. breaking, plan-deviation, judgment-finding)."
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to the escalation message body under $XFLEET_COORDINATION_ROOT."
+              },
+              "priority": {
+                "type": "string",
+                "description": "Routing class derived from reason (e.g. urgent, non-urgent)."
+              },
+              "received_at": {
+                "type": "string",
+                "description": "ISO-8601 timestamp the escalation was received."
+              },
+              "surfaced_at": {
+                "type": "string",
+                "description": "ISO-8601 timestamp the escalation was surfaced to the human."
+              },
+              "resolved_at": {
+                "type": ["string", "null"],
+                "description": "ISO-8601 timestamp the escalation was resolved, or null if still open."
+              }
+            }
+          }
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "title": "{worker}.json",
+      "description": "Per-worker live state, written only by the owning worker session and read by the orchestrator via `xfleet status`. Lives at $XFLEET_COORDINATION_ROOT/state/{worker}.json. Note: prepare_compact_at is NOT a stored field — it is derived from the filesystem mtime of the most recent handoff-{phase}.md.",
+      "additionalProperties": false,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": {
+          "const": "1",
+          "type": "string",
+          "description": "State-file schema version (SC-6). Always the string \"1\" for this revision. The Task-18 validator and Task-19 migration helper key off this field; a missing or mismatched value is rejected."
+        },
+        "current_phase": {
+          "type": "string",
+          "description": "The phase skill the worker currently has loaded (e.g. idle, qa-spec, repo-spec, plan, implement, cross-review, alignment)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Authoritative busy/free signal, orthogonal to current_phase. working = mid-task; idle = reachable, no active task; blocked = waiting on an external decision; compacting = context near auto-compact threshold, handoff written, awaiting human /clear + resume.",
+          "enum": ["working", "idle", "blocked", "compacting"]
+        },
+        "current_task": {
+          "type": ["object", "null"],
+          "description": "The in-flight unit of work, or null when the worker has no active task.",
+          "additionalProperties": false,
+          "required": ["task_id", "description", "source", "received_at"],
+          "properties": {
+            "task_id": {
+              "type": "string",
+              "description": "Unique id for the in-flight task."
+            },
+            "description": {
+              "type": "string",
+              "description": "Human-readable label for the task."
+            },
+            "source": {
+              "type": "string",
+              "description": "Origin of the task: self (worker-initiated), orch-task (xfleet task), or orch-directive (xfleet directive).",
+              "enum": ["self", "orch-task", "orch-directive"]
+            },
+            "received_at": {
+              "type": "string",
+              "description": "ISO-8601 timestamp the task was received/started."
+            }
+          }
+        },
+        "last_updated": {
+          "type": "string",
+          "description": "ISO-8601 timestamp of the most recent write to this file. The orchestrator's straggler detection reads this field."
+        },
+        "listen_bash_id": {
+          "type": "string",
+          "description": "Id of the background bash process running the worker's inbox listener."
+        },
+        "standby": {
+          "type": "boolean",
+          "description": "True when the worker is on standby (paused phase-specific handling while always-on handlers stay active)."
+        },
+        "context_pct": {
+          "type": "integer",
+          "description": "Most recent context-window usage reading, 0-100. Drives warn/compact transitions."
+        },
+        "review_revision_count": {
+          "type": "integer",
+          "description": "Number of review/revision rounds completed in the current phase. Resets to 0 on phase entry."
+        },
+        "findings_status": {
+          "type": "object",
+          "description": "Map of finding id -> lifecycle status for findings the worker is tracking. Arbitrary finding ids are allowed as map keys; each value must be one of the enumerated statuses.",
+          "additionalProperties": {
+            "type": "string",
+            "description": "Lifecycle status of one finding.",
+            "enum": ["new", "auto-revised", "awaiting-review", "resolved", "escalated"]
+          }
+        },
+        "confirmed_closed_concerns": {
+          "type": "array",
+          "description": "Concern ids this worker has confirmed closed via the resolution closure handshake.",
+          "items": {
+            "type": "string",
+            "description": "A confirmed-closed concern id."
+          }
+        },
+        "last_warn_emitted_at": {
+          "type": ["string", "null"],
+          "description": "ISO-8601 timestamp the last context warn was emitted, or null. Debounces warn emissions (cluster 4j); resets on phase entry; cleared when context_pct drops below the warn threshold.",
+          "default": null
+        },
+        "last_check_at": {
+          "type": ["string", "null"],
+          "description": "ISO-8601 timestamp of the last context check, or null. Throttles below-warn context checks (cluster 4j).",
+          "default": null
+        }
+      }
+    }
+  }
+}

@@ -21,11 +21,11 @@ A `worker-config.md` file is a short YAML-flavored Markdown document that an
 xfleet worker reads at session start to know (a) which repo it is operating in,
 (b) what language and conventions apply, (c) which reviewer skill to invoke for
 phase reviews, and (d) any extra skills or context the worker should load. The
-file format is YAML front-matter; prose prose is not expected. Mandatory fields
+file uses YAML syntax; freeform prose is not expected. Mandatory fields
 must be present; optional fields may be omitted entirely.
 
-**Reviewer default (cluster 4m).** The canonical reviewer for all xfleet phase
-reviews is `architect-review`. The default `reviewers:` entry is a single item
+**Reviewer default (cluster 4m).** The canonical reviewer is `architect-review`
+for all xfleet phase reviews. The default `reviewers:` entry is a single item
 with `agent: architect-review` and `intensity: high`. Phase-skill metadata
 overrides this intensity per phase (see Per-Phase Intensity Defaults below). No
 parallel per-repo reviewer ecosystem is maintained — architect-review's intensity

@@ -42,11 +42,10 @@ repo_specific_context: |
   Uses the standard merlin auth middleware.
 '
 
-# Heading-substring assertion: a Markdown heading line (## or ###) containing
-# the given substring (case-sensitive).
+# Literal-heading assertion: the doc must contain the given Markdown heading
+# line verbatim (load-bearing structural anchors).
 assert_doc_heading() {
-    run grep -E "^#+ .*${1}" "${DOC}"
-    [ "$status" -eq 0 ]
+    grep -Fq "${1}" "${DOC}"
 }
 
 # ---------------------------------------------------------------------------
@@ -55,6 +54,14 @@ assert_doc_heading() {
 
 @test "shared/worker-config-schema.md exists" {
     [ -f "${DOC}" ]
+}
+
+@test "has the ## Schema Fields structural heading" {
+    assert_doc_heading "## Schema Fields"
+}
+
+@test "has the ## Per-Phase Intensity Defaults structural heading" {
+    assert_doc_heading "## Per-Phase Intensity Defaults"
 }
 
 # ---------------------------------------------------------------------------
@@ -136,28 +143,34 @@ assert_doc_heading() {
 # Per-phase intensity defaults (cluster 4a graduated policy)
 # ---------------------------------------------------------------------------
 
+# Each per-phase test pins the phase name TO its intensity on the same bullet
+# (exact doc form: `<phase>` phase: `<intensity>`), so flipping the documented
+# intensity would fail the test. A loose "both tokens appear somewhere" grep
+# would false-positive (e.g. the repo-spec bullet's "post-implementation passes
+# drop to standard" contains both "implement" and "standard").
+
 @test "documents qa-spec phase with critical intensity" {
-    run grep -Ei "qa-spec.*critical|critical.*qa-spec" "${DOC}"
+    run grep -F '`qa-spec` phase: `critical`' "${DOC}"
     [ "$status" -eq 0 ]
 }
 
 @test "documents repo-spec phase with high intensity" {
-    run grep -Ei "repo-spec.*high|high.*repo-spec" "${DOC}"
+    run grep -F '`repo-spec` phase: `high`' "${DOC}"
     [ "$status" -eq 0 ]
 }
 
 @test "documents plan phase with standard intensity" {
-    run grep -Ei "plan.*standard|standard.*plan" "${DOC}"
+    run grep -F '`plan` phase: `standard`' "${DOC}"
     [ "$status" -eq 0 ]
 }
 
 @test "documents implement phase with standard intensity" {
-    run grep -Ei "implement.*standard|standard.*implement" "${DOC}"
+    run grep -F '`implement` phase: `standard`' "${DOC}"
     [ "$status" -eq 0 ]
 }
 
 @test "documents cleanup phase with standard intensity" {
-    run grep -Ei "cleanup.*standard|standard.*cleanup" "${DOC}"
+    run grep -F '`cleanup` phase: `standard`' "${DOC}"
     [ "$status" -eq 0 ]
 }
 
@@ -166,7 +179,7 @@ assert_doc_heading() {
 # ---------------------------------------------------------------------------
 
 @test "documents architect-review as the canonical phase reviewer (cluster 4m point 1)" {
-    run grep -Ei "canonical" "${DOC}"
+    run grep -Ei "canonical.*architect-review|architect-review.*canonical" "${DOC}"
     [ "$status" -eq 0 ]
 }
 
@@ -240,7 +253,13 @@ write_fixture() {
 @test "fixture intensity value is within the documented enum (standard|high|critical)" {
     local f
     f="$(write_fixture)"
-    # Extract all intensity: values and assert every one is a valid enum member.
+    # Guard against vacuous pass: a fixture that dropped the reviewers: block
+    # would have zero intensity: lines, the loop body would never run, and the
+    # test would pass. Require at least one intensity: line first.
+    local count
+    count="$(grep -c "intensity:" "${f}")"
+    [ "${count}" -gt 0 ]
+    # Assert every intensity: value is a valid enum member.
     while IFS= read -r line; do
         local val
         val="$(printf '%s' "${line}" | sed 's/.*intensity:[[:space:]]*//')"

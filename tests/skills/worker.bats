@@ -9,6 +9,8 @@
 # Markdown heading), the third-person frontmatter, and the two shared-doc
 # cross-references (design-principles.md is a forward reference to Task 13).
 
+bats_require_minimum_version 1.5.0
+
 SKILL="${BATS_TEST_DIRNAME}/../../skills/worker/SKILL.md"
 
 # Robust heading-substring assertion: matches a Markdown heading line (one or
@@ -30,6 +32,14 @@ assert_heading() {
 @test "frontmatter description is third-person trigger-phrase form" {
     run grep -E "Use when|This skill should be used when" "${SKILL}"
     [ "$status" -eq 0 ]
+}
+
+# --- load-bearing Protocol section (carries the shared-doc pointers) --------
+# Pinned to the exact heading via a literal match so it does NOT also match
+# "## Wire Protocol Cheat-Sheet".
+
+@test "Protocol section is present (exact heading)" {
+    grep -Fq "## Protocol" "${SKILL}"
 }
 
 # --- 12 required sections ---------------------------------------------------
@@ -63,7 +73,7 @@ assert_heading() {
 }
 
 @test "section 8: Task .output recovery" {
-    assert_heading "Task .output Recovery"
+    assert_heading "Task \\.output Recovery"
 }
 
 @test "section 9: Boundary-first presentation" {
@@ -75,7 +85,7 @@ assert_heading() {
 }
 
 @test "section 11: Skill-load + standby semantics" {
-    assert_heading "Standby"
+    assert_heading "Skill-Load.*Standby"
 }
 
 @test "section 12: Phase-exit handoff discipline" {

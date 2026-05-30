@@ -86,7 +86,12 @@ assert_heading() {
 }
 
 @test "documents apply-revisions-first then copy (Model A)" {
-    run grep -E "Model A" "${SKILL}"
+    run grep -E "pending revisions.*first|apply.*first.*then copy|revisions to .spec\\.md. .?.?first" "${SKILL}"
+    [ "$status" -eq 0 ]
+}
+
+@test "documents spec-v0.md as the immutable seed" {
+    run grep -E "spec-v0\\.md.*(immutable|seed)" "${SKILL}"
     [ "$status" -eq 0 ]
 }
 

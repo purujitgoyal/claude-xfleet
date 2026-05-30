@@ -50,6 +50,14 @@ assert_heading() {
     grep -Fq "## Protocol" "${SKILL}"
 }
 
+@test "Snapshot mechanic heading is present" {
+    assert_heading "Snapshot mechanic"
+}
+
+@test "Procedure heading is present" {
+    assert_heading "Procedure"
+}
+
 # --- (a) v0 seed + first snapshot is v1 -------------------------------------
 
 @test "documents section-v0.md as the immutable spec-distribution seed" {
@@ -88,12 +96,16 @@ assert_heading() {
 # Assert the actual ordering phrase, not just a label.
 
 @test "documents apply-revisions-to-section.md-first then copy (Model A order)" {
-    run grep -E "pending revisions to .section\\.md. (first|FIRST)|apply.*revisions.*first.*then copy|revisions.*before.*(snapshot|copy)" "${SKILL}"
+    # Assert the AFFIRMATIVE ordering statement in the procedure prose, not the
+    # negated Rationalizations-table row. "apply-then-copy ORDER" is the
+    # load-bearing phrase at the top of the ordering paragraph; "Apply all
+    # pending revisions ... first" anchors the numbered procedure step.
+    run grep -E "apply-then-copy ORDER|Apply all pending revisions .* first" "${SKILL}"
     [ "$status" -eq 0 ]
 }
 
 @test "documents the copy direction section.md to section-v{N+1}.md" {
-    run grep -E "section\\.md . section-v\\{N\\+1\\}\\.md|copy .section\\.md. . .section-v" "${SKILL}"
+    run grep -E "section\\.md.*section-v\\{N\\+1\\}\\.md|copy .section\\.md. . .section-v" "${SKILL}"
     [ "$status" -eq 0 ]
 }
 
@@ -134,6 +146,15 @@ assert_heading() {
 
 @test "does not hardcode merlin-ai/ in the per-repo path" {
     run grep -E "merlin-ai/docs/superpowers/xfleet/\\{slug\\}/section\\.md" "${SKILL}"
+    [ "$status" -ne 0 ]
+}
+
+@test "uses \$XFLEET_COORDINATION_ROOT for cross-repo state (sibling parity)" {
+    grep -Fq '$XFLEET_COORDINATION_ROOT' "${SKILL}"
+}
+
+@test "does not hardcode ~/.claude/ section path" {
+    run grep -F "~/.claude/" "${SKILL}"
     [ "$status" -ne 0 ]
 }
 

@@ -1,11 +1,11 @@
 ---
 description: Show current xfleet agent and session status
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/xfleet:*)
+allowed-tools: Bash(xfleet:*)
 ---
 
 Run the following command and display its output to the user, formatted clearly:
 
-!`${CLAUDE_PLUGIN_ROOT}/bin/xfleet status`
+!`xfleet status`
 
 After displaying the output, briefly explain any non-obvious status fields:
 

@@ -16,6 +16,8 @@ Run `xfleet --help` or `xfleet <subcommand> --help` for argument details.
 
 ## Subcommands by group
 
+> Note: these groupings are operational (by use-context), not the structural message-type taxonomy (content-carrying vs state-mutating vs read-only) used in `shared/messaging.md`. For sender-authority and message-type rules, defer to messaging.md.
+
 ### Read-only / operational
 | Subcommand | Purpose |
 |------------|---------|

@@ -82,12 +82,24 @@ STATUS_CMD="${BATS_TEST_DIRNAME}/../../commands/status.md"
 }
 
 # ---------------------------------------------------------------------------
-# status.md — uses ${CLAUDE_PLUGIN_ROOT} (not a relative path)
+# status.md — invokes xfleet by BARE NAME (PATH-provided), not an absolute path.
+#
+# Claude Code permission rules do NOT expand env vars, so an allowed-tools entry
+# scoped to ${CLAUDE_PLUGIN_ROOT}/bin/xfleet would never match the runtime
+# command and would prompt on every use. The SessionStart hook puts bin/ on PATH
+# and the manifest ships Bash(xfleet *), so bare `xfleet status` is the correct,
+# auto-permitted invocation.
 # ---------------------------------------------------------------------------
 
-@test "status.md references \${CLAUDE_PLUGIN_ROOT}" {
-    run grep -F '${CLAUDE_PLUGIN_ROOT}' "${STATUS_CMD}"
+@test "status.md allowed-tools is scoped to Bash(xfleet:*)" {
+    run grep -F 'allowed-tools: Bash(xfleet:*)' "${STATUS_CMD}"
     [ "$status" -eq 0 ]
+}
+
+@test "status.md does NOT invoke via an absolute \${CLAUDE_PLUGIN_ROOT}/bin path" {
+    # Regression guard: the env-var path form is a permission defect; assert absence.
+    run grep -F '${CLAUDE_PLUGIN_ROOT}/bin' "${STATUS_CMD}"
+    [ "$status" -ne 0 ]
 }
 
 @test "status.md does not use a relative ../bin path" {
@@ -101,7 +113,7 @@ STATUS_CMD="${BATS_TEST_DIRNAME}/../../commands/status.md"
 }
 
 # ---------------------------------------------------------------------------
-# status.md — uses the !`...` inline-bash execution pattern
+# status.md — uses the !`...` inline-bash execution pattern with bare xfleet
 # ---------------------------------------------------------------------------
 
 @test "status.md uses the backtick inline-bash execution pattern" {
@@ -110,8 +122,8 @@ STATUS_CMD="${BATS_TEST_DIRNAME}/../../commands/status.md"
     [ "$status" -eq 0 ]
 }
 
-@test "status.md inline-bash call invokes xfleet status via CLAUDE_PLUGIN_ROOT" {
-    run grep -F '${CLAUDE_PLUGIN_ROOT}/bin/xfleet status' "${STATUS_CMD}"
+@test "status.md inline-bash call invokes bare xfleet status" {
+    run grep -F '!`xfleet status`' "${STATUS_CMD}"
     [ "$status" -eq 0 ]
 }
 
@@ -147,14 +159,25 @@ STATUS_CMD="${BATS_TEST_DIRNAME}/../../commands/status.md"
     [ "$status" -eq 0 ]
 }
 
-@test "help.md covers negotiation subcommands (concern, resolution)" {
+@test "help.md covers negotiation subcommands (concern, concern-reopen, resolution)" {
     run grep -F 'concern' "${HELP_CMD}"
+    [ "$status" -eq 0 ]
+    run grep -F 'concern-reopen' "${HELP_CMD}"
     [ "$status" -eq 0 ]
     run grep -F 'resolution' "${HELP_CMD}"
     [ "$status" -eq 0 ]
 }
 
-@test "help.md covers lifecycle subcommands (phase, engage, disengage, resume)" {
+@test "help.md covers orchestrator-to-worker subcommands (directive, task, escalation)" {
+    run grep -F 'directive' "${HELP_CMD}"
+    [ "$status" -eq 0 ]
+    run grep -F 'task' "${HELP_CMD}"
+    [ "$status" -eq 0 ]
+    run grep -F 'escalation' "${HELP_CMD}"
+    [ "$status" -eq 0 ]
+}
+
+@test "help.md covers lifecycle subcommands (phase, engage, disengage, resume, continue, phase-complete)" {
     run grep -F 'phase' "${HELP_CMD}"
     [ "$status" -eq 0 ]
     run grep -F 'engage' "${HELP_CMD}"
@@ -162,6 +185,20 @@ STATUS_CMD="${BATS_TEST_DIRNAME}/../../commands/status.md"
     run grep -F 'disengage' "${HELP_CMD}"
     [ "$status" -eq 0 ]
     run grep -F 'resume' "${HELP_CMD}"
+    [ "$status" -eq 0 ]
+    run grep -F 'continue' "${HELP_CMD}"
+    [ "$status" -eq 0 ]
+    run grep -F 'phase-complete' "${HELP_CMD}"
+    [ "$status" -eq 0 ]
+}
+
+@test "help.md covers the review subcommand" {
+    run grep -F 'review' "${HELP_CMD}"
+    [ "$status" -eq 0 ]
+}
+
+@test "help.md notes operational groupings differ from messaging.md structural taxonomy" {
+    run grep -Ei 'structural|message-type taxonomy|use-context' "${HELP_CMD}"
     [ "$status" -eq 0 ]
 }
 

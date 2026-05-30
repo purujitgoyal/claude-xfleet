@@ -25,10 +25,14 @@ assert_key() {
     [ "$status" -eq 0 ]
 }
 
-# Asserts an exact "key: value" frontmatter line is present.
+# Asserts an exact "key: value" line is present WITHIN the YAML frontmatter
+# block (between the first two `---` delimiters), so a future body-prose line
+# starting at column 0 can't falsely satisfy a threshold assertion.
 assert_kv() {
-    run grep -E "^${2}: *${3}\b" "${SKILLS_DIR}/${1}/SKILL.md"
-    [ "$status" -eq 0 ]
+    # Match the exact value to end-of-line ([[:space:]]*$) instead of \b, which
+    # BSD awk does not support; this still rejects 7 != 70 and 70 != 700.
+    run awk '/^---/{c++} c==1 && /^'"${2}"': *'"${3}"'[[:space:]]*$/' "${SKILLS_DIR}/${1}/SKILL.md"
+    [ "${#lines[@]}" -gt 0 ]
 }
 
 # --- existence -------------------------------------------------------------
@@ -90,7 +94,7 @@ assert_kv() {
 @test "every phase skill declares a context_heavy marker" {
     for s in phase-qa-spec phase-repo-spec phase-plan phase-implement phase-cleanup; do
         run grep -E "^context_heavy:" "${SKILLS_DIR}/${s}/SKILL.md"
-        [ "$status" -eq 0 ]
+        [ "$status" -eq 0 ] || { echo "FAILED for skill: $s"; false; }
     done
 }
 
@@ -133,7 +137,7 @@ assert_kv() {
 @test "every phase skill has an Entry heading" {
     for s in phase-qa-spec phase-repo-spec phase-plan phase-implement phase-cleanup; do
         run grep -E "^#+ .*Entry" "${SKILLS_DIR}/${s}/SKILL.md"
-        [ "$status" -eq 0 ]
+        [ "$status" -eq 0 ] || { echo "FAILED for skill: $s"; false; }
     done
 }
 
@@ -142,7 +146,7 @@ assert_kv() {
 @test "every phase skill has an Exit heading" {
     for s in phase-qa-spec phase-repo-spec phase-plan phase-implement phase-cleanup; do
         run grep -E "^#+ .*Exit" "${SKILLS_DIR}/${s}/SKILL.md"
-        [ "$status" -eq 0 ]
+        [ "$status" -eq 0 ] || { echo "FAILED for skill: $s"; false; }
     done
 }
 
@@ -151,14 +155,14 @@ assert_kv() {
 @test "every phase skill references shared/design-principles.md" {
     for s in phase-qa-spec phase-repo-spec phase-plan phase-implement phase-cleanup; do
         run grep -F "shared/design-principles.md" "${SKILLS_DIR}/${s}/SKILL.md"
-        [ "$status" -eq 0 ]
+        [ "$status" -eq 0 ] || { echo "FAILED for skill: $s"; false; }
     done
 }
 
 @test "every phase skill references shared/messaging.md" {
     for s in phase-qa-spec phase-repo-spec phase-plan phase-implement phase-cleanup; do
         run grep -F "shared/messaging.md" "${SKILLS_DIR}/${s}/SKILL.md"
-        [ "$status" -eq 0 ]
+        [ "$status" -eq 0 ] || { echo "FAILED for skill: $s"; false; }
     done
 }
 
@@ -167,6 +171,6 @@ assert_kv() {
 @test "every phase skill description uses third-person trigger form" {
     for s in phase-qa-spec phase-repo-spec phase-plan phase-implement phase-cleanup; do
         run grep -E "Use when entering" "${SKILLS_DIR}/${s}/SKILL.md"
-        [ "$status" -eq 0 ]
+        [ "$status" -eq 0 ] || { echo "FAILED for skill: $s"; false; }
     done
 }

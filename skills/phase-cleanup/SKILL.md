@@ -102,19 +102,23 @@ Before any deletion, read shared session context. Used by handoff sweep and work
 # fall back to 24 hours ago.
 SESSION_START="$(jq -r '.started_at // "1970-01-01T00:00:00Z"' "$XFLEET_COORDINATION_ROOT/state/_session.json" 2>/dev/null)"
 if [[ "$SESSION_START" == "1970-01-01T00:00:00Z" || -z "$SESSION_START" ]]; then
+  # macOS/BSD date syntax. GNU/Linux equivalent: date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ
   SESSION_START="$(date -u -v-24H +%Y-%m-%dT%H:%M:%SZ)"
   echo "Warning: no valid _session.json:started_at; using $SESSION_START (24h ago) as mtime floor."
 fi
 
 # Workers and their repo paths (for handoff sweep).
 # repo_path was written by each worker at /xfleet:worker startup.
+# Portable for bash 3.2 (macOS default): parallel indexed arrays + a plain
+# *.json glob with an existence guard (no zsh (N) qualifier, no bash-4 -A).
 WORKERS=()
-declare -A REPO_PATHS=()
-for f in "$XFLEET_COORDINATION_ROOT"/state/*.json(N); do
+WORKER_REPO_PATHS=()   # parallel indexed array; index aligns with WORKERS
+for f in "$XFLEET_COORDINATION_ROOT"/state/*.json; do
+  [ -e "$f" ] || continue              # no-match guard (replaces zsh (N))
   name="$(basename "$f" .json)"
-  [[ "$name" == _* ]] && continue  # skip _session.json, _orchestrator.json
+  case "$name" in _*) continue;; esac  # skip _session.json, _orchestrator.json
   WORKERS+=("$name")
-  REPO_PATHS[$name]="$(jq -r '.repo_path // empty' "$f")"
+  WORKER_REPO_PATHS+=("$(jq -r '.repo_path // empty' "$f")")
 done
 
 # Orchestrator repo path (for its own handoff sweep below).
@@ -128,9 +132,10 @@ ORCH_REPO_PATH="$(jq -r '.repo_path // empty' "$XFLEET_COORDINATION_ROOT/state/_
 
 Sweep handoff files produced during THIS session. Belt-and-suspenders filter: filename prefix `xfleet-` AND mtime >= `SESSION_START`. Never touch non-xfleet handoffs; never touch xfleet handoffs older than this session's start.
 
-For each worker in `WORKERS`:
-- Target dir: `${REPO_PATHS[$worker]}/docs/superpowers/handoffs/`
-- If `REPO_PATHS[$worker]` is empty or the dir doesn't exist, skip with a `[skipped]` line.
+For each worker index `i` in `WORKERS` (use the index to read the parallel
+`WORKER_REPO_PATHS[i]`, e.g. `for i in "${!WORKERS[@]}"; do …`):
+- Target dir: `${WORKER_REPO_PATHS[$i]}/docs/superpowers/handoffs/`
+- If `WORKER_REPO_PATHS[$i]` is empty or the dir doesn't exist, skip with a `[skipped]` line.
 - Find files matching `xfleet-*.md` with mtime >= `SESSION_START`.
 - `--apply`: delete matches.
 - DRY-RUN: list matches prefixed with `[dry-run] would remove:`.

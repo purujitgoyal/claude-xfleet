@@ -37,8 +37,9 @@ plugin; when Slack is disabled it degrades to stdout prefixed `[slack-disabled]`
   rules, the closure handshake, and round-counter semantics. Do not restate that
   table here — cross-reference it.
 - **Rationalizations-to-Reject + digest format:** the full tables live in
-  `references/rationalizations.md`. Each section below names the cluster; the
-  reference file holds the verbatim excuse→reality rows and the digest template.
+  `references/rationalizations.md`. Sections with a Rationalizations-to-Reject
+  table point to that file for the verbatim excuse→reality rows; not every
+  section carries one. The digest template also lives there.
 
 Path notation throughout uses `$XFLEET_COORDINATION_ROOT/...` (SC-2); never
 hardcoded repo paths.

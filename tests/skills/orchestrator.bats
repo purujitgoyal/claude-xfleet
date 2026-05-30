@@ -25,6 +25,10 @@ assert_heading() {
     [ -f "${SKILL}" ]
 }
 
+@test "references/rationalizations.md exists" {
+    [ -f "${BATS_TEST_DIRNAME}/../../skills/orchestrator/references/rationalizations.md" ]
+}
+
 @test "frontmatter declares name: orchestrator" {
     run grep -E "^name: *orchestrator" "${SKILL}"
     [ "$status" -eq 0 ]
@@ -58,7 +62,7 @@ assert_heading() {
 }
 
 @test "section 4: Wire protocol" {
-    assert_heading "Wire Protocol"
+    assert_heading "Wire Protocol.*Cheat-Sheet"
 }
 
 @test "section 5: Completion gating" {

@@ -24,6 +24,10 @@ assert_heading() {
     [ -f "${SKILL}" ]
 }
 
+@test "references/rationalizations.md exists" {
+    [ -f "${BATS_TEST_DIRNAME}/../../skills/worker/references/rationalizations.md" ]
+}
+
 @test "frontmatter declares name: worker" {
     run grep -E "^name: *worker" "${SKILL}"
     [ "$status" -eq 0 ]

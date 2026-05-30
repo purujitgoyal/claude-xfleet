@@ -17,8 +17,8 @@ context_heavy:
 
 ## Protocol
 
-- **Design principles:** see `shared/design-principles.md` (forthcoming;
-  Task 13) — loaded every session, every `/clear`+resume once it lands.
+- **Design principles:** see `shared/design-principles.md` — loaded every
+  session, every `/clear`+resume.
 - **Wire taxonomy:** see `shared/messaging.md` for the subcommand list, sender
   authority, and `--message`/`--message-file` rules. Do not restate it here.
 

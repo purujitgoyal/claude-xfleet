@@ -27,10 +27,9 @@ backed by evidence read from this repo — no abstract reasoning.
 
 ## Protocol
 
-- **Design principles:** see `shared/design-principles.md` (forthcoming; Task 13)
-  — once it lands it is loaded every session, every `/clear`+resume. F-35 (skills
-  are the source of truth) and F-36 (autonomous execution) govern this skill;
-  re-read them when unsure.
+- **Design principles:** see `shared/design-principles.md` — loaded every
+  session, every `/clear`+resume. F-35 (skills are the source of truth) and F-36
+  (autonomous execution) govern this skill; re-read them when unsure.
 - **Wire taxonomy:** see `shared/messaging.md` for the full subcommand list,
   sender/recipient authority, the `--reason` enum, `--message`/`--message-file`
   rules, the closure handshake, and round-counter semantics. Do not restate that

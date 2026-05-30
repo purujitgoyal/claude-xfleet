@@ -173,10 +173,11 @@ Canonical 5-column reference. Contains a row for **every** name in
 `tools/xfleet/lib/subcommand-registry.sh` (`XFLEET_SUBCOMMANDS`, exactly 19) and
 **only** those names. Reflexive handlers (section f) are intentionally excluded.
 The consistency test (`tests/docs/messaging-consistency.bats`) asserts this table
-and the registry stay in lockstep.
+and the registry stay in lockstep. The **emits reflexive?** column records whether
+invoking the subcommand triggers reflexive auto-handler emissions (section f).
 
-| subcommand | sender | recipient | --message rules | reflexive? |
-|------------|--------|-----------|-----------------|------------|
+| subcommand | sender | recipient | --message rules | emits reflexive? |
+|------------|--------|-----------|-----------------|------------------|
 | `status` | any (read-only) | — | none | no |
 | `peek` | any (read-only) | — | none | no |
 | `listen` | any (read-only) | — | none | no |
@@ -185,10 +186,10 @@ and the registry stay in lockstep.
 | `answer` | orchestrator or worker | original questioner | exactly one of `--message` / `--message-file` | no |
 | `concern` | worker only | peer-worker | exactly one of `--message` / `--message-file` | no |
 | `concern-reopen` | orchestrator or worker | peer-worker | exactly one of `--message` / `--message-file` | no |
-| `resolution` | worker only | peer-worker | exactly one of `--message` / `--message-file` | no |
-| `directive` | orchestrator only | worker | exactly one of `--message` / `--message-file` | no |
-| `task` | orchestrator only | worker | exactly one of `--message` / `--message-file` | no |
-| `escalation` | worker only | orchestrator (`escalation orchestrator`) | exactly one of `--message` / `--message-file`; routed by `--reason` (section c) | no |
+| `resolution` | worker only | peer-worker | exactly one of `--message` / `--message-file` | yes (resolution-ack to peer + resolution-summary to orch) |
+| `directive` | orchestrator only | worker | exactly one of `--message` / `--message-file` | yes (directive-ack + directive-response) |
+| `task` | orchestrator only | worker | exactly one of `--message` / `--message-file` | yes (task-response) |
+| `escalation` | worker only | orchestrator (`escalation orchestrator`) | exactly one of `--message` / `--message-file`; routed by `--reason` (section c) | yes (escalation-response) |
 | `phase` | self-session | — | none (`--enter` / `--complete`) | no |
 | `engage` | any session | — | none | no |
 | `disengage` | any session | — | none | no |

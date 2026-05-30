@@ -36,7 +36,9 @@ load_registry_names() {
 # table, trimming backticks and whitespace. Emits one name per line.
 #
 # Region is bounded: from the line containing $SECTION_H_MARKER up to (but not
-# including) the next markdown heading line (a line starting with '#').
+# including) the next PEER-level (##) markdown heading. Deeper sub-headings
+# (### ...) inside section (h) keep the region open, so rows below them are
+# still extracted.
 # Within that region we keep only table data rows: lines that start with '|',
 # contain at least one more '|', and are NOT the header separator (---) or the
 # header label row (whose first cell is literally "subcommand").
@@ -44,8 +46,11 @@ extract_table_names() {
     awk -v marker="${SECTION_H_MARKER}" '
         # Enter the region once we see the marker line.
         $0 ~ marker { inregion = 1; next }
-        # A heading after the region begins ends the region.
-        inregion && /^#/ { inregion = 0 }
+        # End the region only on the next PEER-level (##) heading. Matching any
+        # /^#/ would also stop at a deeper sub-heading (e.g. "### Notes") placed
+        # INSIDE section (h), silently dropping rows below it. /^##[^#]/ matches
+        # exactly two leading "#" so sub-headings keep the region open.
+        inregion && /^##[^#]/ { inregion = 0 }
         inregion {
             line = $0
             # Must look like a table row: leading optional space then "|".

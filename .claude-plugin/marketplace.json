@@ -1,0 +1,16 @@
+{
+  "name": "claude-xfleet",
+  "description": "Multi-repo coordination plugin for Claude Code — orchestrates parallel agent sessions via Redis Streams.",
+  "owner": {
+    "name": "purujitgoyal"
+  },
+  "plugins": [
+    {
+      "name": "xfleet",
+      "description": "xfleet — multi-repo coordination for Claude Code via Redis Streams: broadcast directives, collect worker status, gate phase transitions.",
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/purujitgoyal/claude-xfleet"
+    }
+  ]
+}

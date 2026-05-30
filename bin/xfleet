@@ -45,60 +45,38 @@ Run 'xfleet <subcommand> --help' for subcommand-specific help.
 EOF
 }
 
-# Minimal "did you mean" via character-overlap heuristic.
-# Scores each known subcommand against the input and returns the best match.
+# Minimal, bash-3.2-safe "did you mean" suggestion.
+# Ranks candidates by: longest common prefix with input (primary), then whether
+# one contains the other as a substring (tie-break), then shortest name.
+# With 19 fixed candidates (max len 14) this is plenty accurate.
 suggest_subcommand() {
     local input="$1"
     local best=""
-    # Score = shared prefix length * 10000 - levenshtein_distance.
-    # Candidates that share a longer common prefix score higher; Levenshtein
-    # breaks ties.  This handles typos at the end (e.g. "statuss") as well as
-    # typos mid-word where the prefix still matches (e.g. "directivee").
-    local best_score=-999999
+    local best_pfx=-1 best_sub=-1 best_len=9999
 
     for candidate in "${XFLEET_SUBCOMMANDS[@]}"; do
-        local dist
-        dist=$(levenshtein_score "${input}" "${candidate}")
-        # Compute shared prefix length
         local pfx=0
         local max_pfx=$(( ${#input} < ${#candidate} ? ${#input} : ${#candidate} ))
         while (( pfx < max_pfx )) && [[ "${input:pfx:1}" == "${candidate:pfx:1}" ]]; do
-            (( pfx++ )) || true
+            pfx=$(( pfx + 1 ))
         done
-        local score=$(( pfx * 10000 - dist ))
-        if (( score > best_score )); then
-            best_score=$score
+
+        local sub=0
+        if [[ "${candidate}" == *"${input}"* || "${input}" == *"${candidate}"* ]]; then
+            sub=1
+        fi
+
+        # Lexicographic preference: higher prefix, then substring match, then shorter name.
+        if (( pfx > best_pfx )) \
+            || { (( pfx == best_pfx )) && (( sub > best_sub )); } \
+            || { (( pfx == best_pfx )) && (( sub == best_sub )) && (( ${#candidate} < best_len )); }; then
+            best_pfx=$pfx
+            best_sub=$sub
+            best_len=${#candidate}
             best="${candidate}"
         fi
     done
     echo "${best}"
-}
-
-# Pure-bash Levenshtein distance (handles strings up to ~50 chars comfortably).
-levenshtein_score() {
-    local s="$1" t="$2"
-    local m=${#s} n=${#t}
-    local -a d
-
-    # Initialize first row and column
-    local i j
-    for (( i=0; i<=m; i++ )); do d[$i,0]=$i; done
-    for (( j=0; j<=n; j++ )); do d[0,$j]=$j; done
-
-    for (( i=1; i<=m; i++ )); do
-        for (( j=1; j<=n; j++ )); do
-            local cost=1
-            [[ "${s:i-1:1}" == "${t:j-1:1}" ]] && cost=0
-            local del=$(( d[i-1,j] + 1 ))
-            local ins=$(( d[i,j-1] + 1 ))
-            local sub=$(( d[i-1,j-1] + cost ))
-            local min=$del
-            (( ins < min )) && min=$ins
-            (( sub < min )) && min=$sub
-            d[$i,$j]=$min
-        done
-    done
-    echo "${d[$m,$n]}"
 }
 
 is_known_subcommand() {
@@ -125,7 +103,7 @@ case "$1" in
         usage
         exit 0
         ;;
-    --*)
+    -*)
         echo "ERROR: Unknown option '$1'. Use 'xfleet --help' for usage." >&2
         exit 1
         ;;
@@ -147,10 +125,10 @@ if is_known_subcommand "${SUBCOMMAND}"; then
     exec bash "${handler}" "$@"
 else
     suggestion="$(suggest_subcommand "${SUBCOMMAND}")"
-    echo "ERROR: Unknown subcommand '${SUBCOMMAND}'."
-    echo ""
-    echo "Did you mean: ${suggestion}"
-    echo ""
-    echo "Run 'xfleet --help' for the full list of subcommands."
+    echo "ERROR: Unknown subcommand '${SUBCOMMAND}'." >&2
+    echo "" >&2
+    echo "Did you mean: ${suggestion}" >&2
+    echo "" >&2
+    echo "Run 'xfleet --help' for the full list of subcommands." >&2
     exit 1
 fi

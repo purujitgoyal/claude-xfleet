@@ -56,23 +56,25 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [ "$status" -ne 0 ]
 }
 
-@test "(b) xfleet <unknown-subcommand> prints error message" {
-    run "${XFLEET}" zzz-totally-unknown-cmd
-    [[ "$output" == *"zzz-totally-unknown-cmd"* ]] || [[ "$output" == *"Unknown"* ]] || [[ "$output" == *"unknown"* ]]
+@test "(b) xfleet <unknown-subcommand> prints error message to stderr" {
+    run --separate-stderr "${XFLEET}" zzz-totally-unknown-cmd
+    [[ "$stderr" == *"zzz-totally-unknown-cmd"* ]] || [[ "$stderr" == *"Unknown"* ]] || [[ "$stderr" == *"unknown"* ]]
+    # Error text must NOT leak to stdout
+    [ -z "$output" ]
 }
 
-@test "(b) xfleet <typo-near-status> prints a did-you-mean suggestion with a real subcommand" {
-    # 'statuss' is one edit away from 'status'
-    run "${XFLEET}" statuss
+@test "(b) xfleet <typo-near-status> prints a did-you-mean suggestion on stderr" {
+    # 'statuss' shares the 'status' prefix
+    run --separate-stderr "${XFLEET}" statuss
     [ "$status" -ne 0 ]
-    # Output must reference a real subcommand name (the suggestion)
-    [[ "$output" == *"status"* ]]
+    # stderr must reference a real subcommand name (the suggestion)
+    [[ "$stderr" == *"status"* ]]
 }
 
-@test "(b) xfleet <typo-near-directive> prints suggestion" {
-    run "${XFLEET}" direktive
+@test "(b) xfleet <typo-near-directive> prints suggestion on stderr" {
+    run --separate-stderr "${XFLEET}" direktive
     [ "$status" -ne 0 ]
-    [[ "$output" == *"directive"* ]]
+    [[ "$stderr" == *"directive"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -186,4 +188,59 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
 @test "(d) xfleet with no args prints usage information" {
     run "${XFLEET}"
     [ -n "$output" ]
+}
+
+# ---------------------------------------------------------------------------
+# (e) argument passthrough: dispatcher forwards "$@" to the handler
+# ---------------------------------------------------------------------------
+
+@test "(e) xfleet <subcommand> forwards args to the handler" {
+    # Build a minimal fixture plugin tree so the dispatcher routes to a stub
+    # that records the args it received, rather than mutating a real stub.
+    local fixture
+    fixture="$(mktemp -d)"
+    mkdir -p "${fixture}/tools/xfleet/lib" "${fixture}/tools/xfleet/subcommands"
+
+    cat > "${fixture}/tools/xfleet/lib/subcommand-registry.sh" <<'REG'
+XFLEET_SUBCOMMANDS=( echoargs )
+xfleet_subcommand_dir() {
+    echo "$(cd "$(dirname "${BASH_SOURCE[0]}")/../subcommands" && pwd)"
+}
+REG
+
+    local argfile="${fixture}/received-args"
+    cat > "${fixture}/tools/xfleet/subcommands/echoargs.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "\$@" > "${argfile}"
+exit 0
+EOF
+    chmod +x "${fixture}/tools/xfleet/subcommands/echoargs.sh"
+
+    CLAUDE_PLUGIN_ROOT="${fixture}" run "${XFLEET}" echoargs arg1 arg2 "third arg"
+    [ "$status" -eq 0 ]
+
+    [ -f "${argfile}" ]
+    run cat "${argfile}"
+    [[ "${lines[0]}" == "arg1" ]]
+    [[ "${lines[1]}" == "arg2" ]]
+    [[ "${lines[2]}" == "third arg" ]]
+
+    rm -rf "${fixture}"
+}
+
+# ---------------------------------------------------------------------------
+# (f) single-dash unknown option: errors to stderr, exits non-zero
+# ---------------------------------------------------------------------------
+
+@test "(f) xfleet -v (unknown single-dash option) exits non-zero" {
+    run "${XFLEET}" -v
+    [ "$status" -ne 0 ]
+}
+
+@test "(f) xfleet -v prints unknown-option error to stderr (no did-you-mean)" {
+    run --separate-stderr "${XFLEET}" -v
+    [[ "$stderr" == *"Unknown option"* ]]
+    # Must not fall through to subcommand suggestion
+    [[ "$stderr" != *"Did you mean"* ]]
 }

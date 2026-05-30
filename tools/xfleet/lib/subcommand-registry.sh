@@ -6,8 +6,10 @@
 # Usage:
 #   source "$(dirname "${BASH_SOURCE[0]}")/subcommand-registry.sh"
 #   xfleet_subcommand_dir  # prints the subcommands/ directory path
-
-set -euo pipefail
+#
+# This is a SOURCED library — it intentionally does NOT set strict mode, so it
+# does not mutate the caller's shell options. Entry points (bin/xfleet, the
+# subcommand stubs) own `set -euo pipefail`.
 
 # Canonical list of 19 user-facing subcommands.
 # Reflexive auto-handler messages (directive-ack, task-response, etc.) are

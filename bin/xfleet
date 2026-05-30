@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# bin/xfleet — xfleet subcommand dispatcher.
+#
+# Routes to tools/xfleet/subcommands/{name}.sh, passing remaining args through.
+# Works standalone (invoked by path) and as a plugin binary (CLAUDE_PLUGIN_ROOT set).
+#
+# Usage:
+#   xfleet <subcommand> [args...]
+#   xfleet --help
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Resolve plugin/repo root from this script's own location (standalone-safe).
+# CLAUDE_PLUGIN_ROOT is accepted as an override but not required.
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${SCRIPT_DIR}/..}"
+
+# ---------------------------------------------------------------------------
+# Load the subcommand registry.
+# ---------------------------------------------------------------------------
+REGISTRY="${PLUGIN_ROOT}/tools/xfleet/lib/subcommand-registry.sh"
+if [[ ! -f "${REGISTRY}" ]]; then
+    echo "ERROR: subcommand-registry.sh not found at ${REGISTRY}" >&2
+    exit 1
+fi
+# shellcheck source=../tools/xfleet/lib/subcommand-registry.sh
+source "${REGISTRY}"
+
+SUBCOMMAND_DIR="$(xfleet_subcommand_dir)"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+usage() {
+    cat <<EOF
+Usage: xfleet <subcommand> [args...]
+
+Subcommands:
+$(for cmd in "${XFLEET_SUBCOMMANDS[@]}"; do printf '  %s\n' "$cmd"; done)
+
+Run 'xfleet <subcommand> --help' for subcommand-specific help.
+EOF
+}
+
+# Minimal "did you mean" via character-overlap heuristic.
+# Scores each known subcommand against the input and returns the best match.
+suggest_subcommand() {
+    local input="$1"
+    local best=""
+    # Score = shared prefix length * 10000 - levenshtein_distance.
+    # Candidates that share a longer common prefix score higher; Levenshtein
+    # breaks ties.  This handles typos at the end (e.g. "statuss") as well as
+    # typos mid-word where the prefix still matches (e.g. "directivee").
+    local best_score=-999999
+
+    for candidate in "${XFLEET_SUBCOMMANDS[@]}"; do
+        local dist
+        dist=$(levenshtein_score "${input}" "${candidate}")
+        # Compute shared prefix length
+        local pfx=0
+        local max_pfx=$(( ${#input} < ${#candidate} ? ${#input} : ${#candidate} ))
+        while (( pfx < max_pfx )) && [[ "${input:pfx:1}" == "${candidate:pfx:1}" ]]; do
+            (( pfx++ )) || true
+        done
+        local score=$(( pfx * 10000 - dist ))
+        if (( score > best_score )); then
+            best_score=$score
+            best="${candidate}"
+        fi
+    done
+    echo "${best}"
+}
+
+# Pure-bash Levenshtein distance (handles strings up to ~50 chars comfortably).
+levenshtein_score() {
+    local s="$1" t="$2"
+    local m=${#s} n=${#t}
+    local -a d
+
+    # Initialize first row and column
+    local i j
+    for (( i=0; i<=m; i++ )); do d[$i,0]=$i; done
+    for (( j=0; j<=n; j++ )); do d[0,$j]=$j; done
+
+    for (( i=1; i<=m; i++ )); do
+        for (( j=1; j<=n; j++ )); do
+            local cost=1
+            [[ "${s:i-1:1}" == "${t:j-1:1}" ]] && cost=0
+            local del=$(( d[i-1,j] + 1 ))
+            local ins=$(( d[i,j-1] + 1 ))
+            local sub=$(( d[i-1,j-1] + cost ))
+            local min=$del
+            (( ins < min )) && min=$ins
+            (( sub < min )) && min=$sub
+            d[$i,$j]=$min
+        done
+    done
+    echo "${d[$m,$n]}"
+}
+
+is_known_subcommand() {
+    local cmd="$1"
+    for candidate in "${XFLEET_SUBCOMMANDS[@]}"; do
+        [[ "$candidate" == "$cmd" ]] && return 0
+    done
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+
+if [[ $# -eq 0 ]]; then
+    echo "ERROR: No subcommand provided." >&2
+    echo "" >&2
+    usage >&2
+    exit 1
+fi
+
+case "$1" in
+    --help|-h)
+        usage
+        exit 0
+        ;;
+    --*)
+        echo "ERROR: Unknown option '$1'. Use 'xfleet --help' for usage." >&2
+        exit 1
+        ;;
+esac
+
+SUBCOMMAND="$1"
+shift  # remaining args passed to the handler
+
+# ---------------------------------------------------------------------------
+# Dispatch
+# ---------------------------------------------------------------------------
+
+if is_known_subcommand "${SUBCOMMAND}"; then
+    handler="${SUBCOMMAND_DIR}/${SUBCOMMAND}.sh"
+    if [[ ! -f "${handler}" ]]; then
+        echo "ERROR: Handler not found for subcommand '${SUBCOMMAND}': ${handler}" >&2
+        exit 1
+    fi
+    exec bash "${handler}" "$@"
+else
+    suggestion="$(suggest_subcommand "${SUBCOMMAND}")"
+    echo "ERROR: Unknown subcommand '${SUBCOMMAND}'."
+    echo ""
+    echo "Did you mean: ${suggestion}"
+    echo ""
+    echo "Run 'xfleet --help' for the full list of subcommands."
+    exit 1
+fi

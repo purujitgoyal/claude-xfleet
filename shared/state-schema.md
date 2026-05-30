@@ -89,7 +89,8 @@ These are contracts the JSON Schema cannot express; writers must uphold them.
 - **`current_task` null ⟺ no active unit of work.** In `{worker}.json`,
   `current_task` is an object while a unit of work is in flight and `null`
   otherwise. A worker reporting `status == "working"` should carry a non-null
-  `current_task`.
+  `current_task`. Its `task_id` uniquely identifies the unit of work; its
+  `received_at` records when the worker started it.
 - **`emission_id` correlation.** Every `phase_emissions.{phase}.{signal}.emission_id`
   has a matching `emission_log[].emission_id` (and vice versa) for audit.
 - **`escalation_log[].resolved_at`** is null while an escalation is open and set to

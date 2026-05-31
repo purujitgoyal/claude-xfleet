@@ -3,10 +3,11 @@
 #
 # Sends a peer-to-peer concern from one worker to another. Per messaging.md (b):
 # sender must be worker; recipient is a peer worker. Increments the round counter
-# (messaging.md g, F-15).
+# (messaging.md g, F-15) keyed on the STABLE concern-id (not the per-message id),
+# so repeated concerns in the same dispute accumulate.
 #
-# Usage: xfleet concern <recipient> --message <text>
-#        xfleet concern <recipient> --message-file <path>
+# Usage: xfleet concern <recipient> <concern-id> --message <text>
+#        xfleet concern <recipient> <concern-id> --message-file <path>
 #
 # Options:
 #   --message <text>      Inline message text (exactly one of --message/--message-file)
@@ -36,17 +37,23 @@ assert_role worker
 # ---------------------------------------------------------------------------
 # Arg parsing
 # ---------------------------------------------------------------------------
-if [[ $# -lt 1 ]]; then
-    printf 'Usage: xfleet concern <recipient> --message <text>\n' >&2
-    printf '       xfleet concern <recipient> --message-file <path>\n' >&2
+if [[ $# -lt 2 ]]; then
+    printf 'Usage: xfleet concern <recipient> <concern-id> --message <text>\n' >&2
+    printf '       xfleet concern <recipient> <concern-id> --message-file <path>\n' >&2
     exit 1
 fi
 
 RECIPIENT="$1"
-shift
+CONCERN_ID="$2"
+shift 2
 
 if [[ -z "${RECIPIENT}" ]]; then
     printf 'Error: concern requires a recipient.\n' >&2
+    exit 1
+fi
+
+if [[ -z "${CONCERN_ID}" ]]; then
+    printf 'Error: concern requires a concern-id (stable across all rounds of the dispute).\n' >&2
     exit 1
 fi
 
@@ -92,19 +99,21 @@ MSG_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 FULL_MSG="$(jq -cn \
-    --arg id        "${MSG_ID}" \
-    --arg type      "concern" \
-    --arg from      "${SENDER}" \
-    --arg to        "${RECIPIENT}" \
-    --arg ts        "${TIMESTAMP}" \
-    --arg content   "${MESSAGE_CONTENT}" \
-    '{id: $id, type: $type, from: $from, to: $to, timestamp: $ts, content: $content}'
+    --arg id         "${MSG_ID}" \
+    --arg type       "concern" \
+    --arg from       "${SENDER}" \
+    --arg to         "${RECIPIENT}" \
+    --arg ts         "${TIMESTAMP}" \
+    --arg content    "${MESSAGE_CONTENT}" \
+    --arg concern_id "${CONCERN_ID}" \
+    '{id: $id, type: $type, from: $from, to: $to, timestamp: $ts, content: $content, concern_id: $concern_id}'
 )"
 
 # ---------------------------------------------------------------------------
-# Increment round counter BEFORE publishing (F-15: concern increments, not response)
+# Increment round counter BEFORE publishing (F-15: concern increments, not response).
+# Keyed on the STABLE concern-id so all rounds of the same dispute accumulate.
 # ---------------------------------------------------------------------------
-ROUND="$(incr_round "${MSG_ID}")"
+ROUND="$(incr_round "${CONCERN_ID}")"
 
 # ---------------------------------------------------------------------------
 # Publish to recipient inbox
@@ -114,4 +123,5 @@ STREAM="inbox:${RECIPIENT}"
 # Senders only XADD — the listener owns consumer-group creation.
 xfleet_redis XADD "${STREAM}" MAXLEN "~" 200 "*" data "${FULL_MSG}" >/dev/null
 
-printf 'concern: sent to %s (msg_id: %s, round: %s)\n' "${RECIPIENT}" "${MSG_ID}" "${ROUND}"
+printf 'concern: sent to %s (msg_id: %s, concern_id: %s, round: %s)\n' \
+    "${RECIPIENT}" "${MSG_ID}" "${CONCERN_ID}" "${ROUND}"

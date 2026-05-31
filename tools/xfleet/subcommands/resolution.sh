@@ -94,13 +94,23 @@ MESSAGE_CONTENT=""
 resolve_message_content MESSAGE_TEXT MESSAGE_FILE resolution
 
 # ---------------------------------------------------------------------------
-# Require XFLEET_WORKER_STATE_PATH so the closure handshake can update state
+# Resolve the worker's own state file the standard way (matches listen.sh):
+#   $XFLEET_COORDINATION_ROOT/state/${XFLEET_WORKER_NAME}.json
+# Required so the closure handshake can mark the concern closed-acked.
 # ---------------------------------------------------------------------------
-WORKER_STATE_PATH="${XFLEET_WORKER_STATE_PATH:-}"
-if [[ -z "${WORKER_STATE_PATH}" ]]; then
-    printf 'Error: XFLEET_WORKER_STATE_PATH is not set (required for resolution closure handshake).\n' >&2
+COORD_ROOT="${XFLEET_COORDINATION_ROOT:-}"
+if [[ -z "${COORD_ROOT}" ]]; then
+    printf 'Error: XFLEET_COORDINATION_ROOT is not set (required for resolution closure handshake).\n' >&2
     exit 1
 fi
+
+WORKER_NAME="${XFLEET_WORKER_NAME:-}"
+if [[ -z "${WORKER_NAME}" ]]; then
+    printf 'Error: XFLEET_WORKER_NAME is not set (the worker'\''s short-name; required to locate its own state file).\n' >&2
+    exit 1
+fi
+
+WORKER_STATE_PATH="${COORD_ROOT}/state/${WORKER_NAME}.json"
 
 # ---------------------------------------------------------------------------
 # Build the primary resolution wire message (worker → peer worker)

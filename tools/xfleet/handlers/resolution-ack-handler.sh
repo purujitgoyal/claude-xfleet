@@ -7,30 +7,28 @@
 # subcommand registry.
 #
 # Responsibilities (messaging.md e + f):
-#   1. Emit a resolution-ack wire message to the peer worker (concern raiser).
-#   2. Append the concern_id to the sender's confirmed_closed_concerns[] array
-#      (deduped) via state_update_field.
+#   Emit the resolution-ack wire message to the peer worker (concern raiser).
+#   The state write (marking the concern in confirmed_closed_concerns[]) is owned
+#   by the user-facing resolution.sh, NOT this reflexive handler.
 #
 # Usage (internal, called by resolution.sh):
 #   resolution-ack-handler.sh <peer-worker> <concern-id> <resolution-msg-id> <content>
 #
-# Arguments:
+# Arguments (all required, all non-empty):
 #   peer-worker       — recipient of the resolution-ack (original concern raiser)
 #   concern-id        — id of the concern being closed
 #   resolution-msg-id — id of the originating resolution message (for correlation)
 #   content           — resolution message content (forwarded to ack payload)
 #
 # Exit codes:
-#   0 — resolution-ack published; state updated
-#   1 — argument or Redis/state failure
+#   0 — resolution-ack published
+#   1 — argument or Redis failure
 
 _ACK_HANDLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/strict-mode.sh
 source "${_ACK_HANDLER_DIR}/../lib/strict-mode.sh"
 # shellcheck source=../lib/redis.sh
 source "${_ACK_HANDLER_DIR}/../lib/redis.sh"
-# shellcheck source=../lib/state-io.sh
-source "${_ACK_HANDLER_DIR}/../lib/state-io.sh"
 
 # ---------------------------------------------------------------------------
 # Argument validation
@@ -55,6 +53,16 @@ if [[ -z "${CONCERN_ID}" ]]; then
     exit 1
 fi
 
+if [[ -z "${RESOLUTION_MSG_ID}" ]]; then
+    printf 'resolution-ack-handler: resolution-msg-id argument is empty.\n' >&2
+    exit 1
+fi
+
+if [[ -z "${CONTENT}" ]]; then
+    printf 'resolution-ack-handler: content argument is empty.\n' >&2
+    exit 1
+fi
+
 # ---------------------------------------------------------------------------
 # Build and publish resolution-ack to peer worker (messaging.md e step 1)
 # ---------------------------------------------------------------------------
@@ -76,20 +84,8 @@ ACK_MSG="$(jq -cn \
 
 xfleet_redis XADD "inbox:${PEER_WORKER}" MAXLEN "~" 200 "*" data "${ACK_MSG}" >/dev/null
 
-# ---------------------------------------------------------------------------
-# Append concern_id to confirmed_closed_concerns[] in sender's worker state
-# (messaging.md e step 3). Deduplicate via jq `unique`.
-# State path is inherited from XFLEET_WORKER_STATE_PATH (set by resolution.sh's
-# environment; this handler runs in the same process).
-# ---------------------------------------------------------------------------
-WORKER_STATE_PATH="${XFLEET_WORKER_STATE_PATH:-}"
-if [[ -n "${WORKER_STATE_PATH}" ]]; then
-    state_update_field "${WORKER_STATE_PATH}" \
-        ". + {confirmed_closed_concerns: ((.confirmed_closed_concerns // []) + [\"${CONCERN_ID}\"] | unique)}"
-fi
-# If XFLEET_WORKER_STATE_PATH is unset we skip the state write — the handler
-# still succeeds at emitting the ack. resolution.sh itself also writes the state,
-# so closure is still recorded end-to-end.
+# The state write (confirmed_closed_concerns[]) is owned by resolution.sh, not
+# this reflexive handler — this handler only emits the resolution-ack message.
 
 printf 'resolution-ack-handler: ack sent to %s (ack_id: %s, concern_id: %s)\n' \
     "${PEER_WORKER}" "${ACK_MSG_ID}" "${CONCERN_ID}"

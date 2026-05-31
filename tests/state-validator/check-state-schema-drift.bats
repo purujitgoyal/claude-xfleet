@@ -299,3 +299,153 @@ write_tmp() {
     run bash "${SCRIPT}" "${schema}" "${prose}"
     [ "$status" -eq 0 ]
 }
+
+# ---------------------------------------------------------------------------
+# (M-1) Subsection-exclusion: non-field tokens under ### Derived / Excluded
+#        subsections must NOT be flagged by the inverse check.
+# ---------------------------------------------------------------------------
+
+# Schema for M-1: orchestrator has schema_version; worker has schema_version +
+# worker_mode.  No derived_token defined anywhere — it is intentionally absent.
+SCHEMA_M1='{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "orchestrator": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "description": "Schema version string."
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "description": "Schema version string."
+        },
+        "worker_mode": {
+          "type": "string",
+          "description": "The active mode for the worker."
+        }
+      }
+    }
+  }
+}'
+
+# Prose where `derived_token` appears ONLY under the ### Derived — NOT stored
+# subsection.  All schema fields are mentioned in the Lifecycle section.
+PROSE_M1_EXCLUDED='# xfleet State File Schema
+
+## Lifecycle
+
+The `schema_version` field is always "1". Workers track mode in `worker_mode`.
+
+### Derived — NOT stored
+
+- **`derived_token`** is not a state field; it is computed at read time.
+
+## Writer Ownership
+
+Both `schema_version` and `worker_mode` are written by their owners.
+'
+
+# Same prose but `derived_token` placed in a normal section (## Lifecycle),
+# not in the excluded subsection — it SHOULD be flagged.
+PROSE_M1_NORMAL='# xfleet State File Schema
+
+## Lifecycle
+
+The `schema_version` field is always "1". Workers track mode in `worker_mode`.
+Also see `derived_token` for context.
+
+## Writer Ownership
+
+Both `schema_version` and `worker_mode` are written by their owners.
+'
+
+@test "(M-1) subsection-exclusion: derived_token under ### Derived subsection is NOT flagged" {
+    schema="$(write_tmp "m1-schema.json" "${SCHEMA_M1}")"
+    prose="$(write_tmp "m1-excluded-prose.md" "${PROSE_M1_EXCLUDED}")"
+    run bash "${SCRIPT}" "${schema}" "${prose}"
+    [ "$status" -eq 0 ]
+    [[ ! "${output}" =~ "derived_token" ]]
+}
+
+@test "(M-1) subsection-exclusion: derived_token in a normal section IS flagged (exclusion is section-scoped)" {
+    schema="$(write_tmp "m1-schema.json" "${SCHEMA_M1}")"
+    prose="$(write_tmp "m1-normal-prose.md" "${PROSE_M1_NORMAL}")"
+    run bash "${SCRIPT}" "${schema}" "${prose}"
+    [ "$status" -ne 0 ]
+    [[ "${output}" =~ "derived_token" ]]
+}
+
+# ---------------------------------------------------------------------------
+# (M-2) Two-vocabulary boundary: array-item sub-fields are in the deep vocab
+#        (not flagged by inverse check) but NOT required by the forward check.
+# ---------------------------------------------------------------------------
+
+# Schema for M-2: orchestrator has schema_version + an array field whose items
+# carry an entry_id sub-field.  entry_id is deep-vocab only, not forward-vocab.
+SCHEMA_M2='{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "orchestrator": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "description": "Schema version string."
+        },
+        "entry_log": {
+          "type": "array",
+          "description": "Append-only log of entries.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "entry_id": {
+                "type": "string",
+                "description": "Unique id for the entry."
+              }
+            }
+          }
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "description": "Schema version string."
+        }
+      }
+    }
+  }
+}'
+
+# Prose that mentions top-level fields (schema_version, entry_log) but also
+# references `entry_id` in backticks inside a normal section.
+# Forward check: only schema_version + entry_log required (not entry_id).
+# Inverse check: entry_id is in deep vocab → NOT flagged as stale.
+PROSE_M2='# xfleet State File Schema
+
+## Lifecycle
+
+The `schema_version` field is always "1". The `entry_log` array is append-only.
+Each entry carries an `entry_id` for correlation.
+
+## Writer Ownership
+
+Writers set `schema_version` and append to `entry_log`.
+'
+
+@test "(M-2) two-vocabulary: entry_id in normal section is NOT flagged (deep vocab) and exit 0" {
+    schema="$(write_tmp "m2-schema.json" "${SCHEMA_M2}")"
+    prose="$(write_tmp "m2-prose.md" "${PROSE_M2}")"
+    run bash "${SCRIPT}" "${schema}" "${prose}"
+    [ "$status" -eq 0 ]
+    [[ ! "${output}" =~ "entry_id" ]]
+}

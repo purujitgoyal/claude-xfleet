@@ -26,9 +26,13 @@
 #      Heuristic (conservative):
 #        - Token must match [a-z][a-z0-9_]+ AND contain >= 1 underscore.
 #          (Underscore requirement filters enum values, common words, commands.)
-#        - Lines containing explicit "not a field / excluded" markers are
-#          skipped — tokens on those lines are being called out as non-fields,
-#          not used as field references.
+#        - The prose variant used for the inverse check ALSO strips two named
+#          subsections structurally: "### Derived — NOT stored" and
+#          "### Excluded — separate plan" (each subsection ends at the next
+#          heading of any level). Non-field identifiers documented under those
+#          subsections are invisible to the inverse check. Contract: those
+#          headings must keep their exact text; a renamed heading causes the
+#          formerly-suppressed token to become a flagged false positive → CI red.
 #        - The vocabulary for the inverse check includes ALL schema field names
 #          at all depths (top-level, nested objects, array-item properties, and
 #          deep-nested map-value properties) so legitimate references to deeper
@@ -140,7 +144,10 @@ SCHEMA_FIELDS_DEEP="$(jq -r '
       | .value.additionalProperties.additionalProperties.properties | keys[]
     )
   )
-' "${SCHEMA}" 2>/dev/null | sort -u || true)"
+' "${SCHEMA}" 2>/dev/null | sort -u)" || {
+    printf 'ERROR: failed to extract deep field vocabulary from schema: %s\n' "${SCHEMA}" >&2
+    exit 1
+}
 
 SCHEMA_FIELDS_ALL="$(printf '%s\n%s' "${SCHEMA_FIELDS_FORWARD}" "${SCHEMA_FIELDS_DEEP}" | sort -u)"
 
@@ -190,11 +197,28 @@ MISSING_DESCS="$(jq -r '
 
 # ---------------------------------------------------------------------------
 # 3. Extract the manual prose (everything outside BEGIN/END GENERATED block).
+#
+# MANUAL_PROSE: used for the forward check (all manual content).
+# INVERSE_PROSE: used for the inverse check; additionally strips the two
+#   named subsections "### Derived — NOT stored" and
+#   "### Excluded — separate plan" so that non-field identifiers documented
+#   there are not flagged as stale references. Each subsection is suppressed
+#   from its ### heading until the next heading of any level.
 # ---------------------------------------------------------------------------
 MANUAL_PROSE="$(awk '
     /<!-- BEGIN GENERATED -->/ { skip=1; next }
     /<!-- END GENERATED -->/   { skip=0; next }
     !skip { print }
+' "${PROSE}")"
+
+INVERSE_PROSE="$(awk '
+    /<!-- BEGIN GENERATED -->/ { gen_skip=1; next }
+    /<!-- END GENERATED -->/   { gen_skip=0; next }
+    gen_skip { next }
+    /^#/ { sub_skip=0 }
+    /^### Derived — NOT stored$/  { sub_skip=1; next }
+    /^### Excluded — separate plan$/ { sub_skip=1; next }
+    !sub_skip { print }
 ' "${PROSE}")"
 
 # ---------------------------------------------------------------------------
@@ -212,20 +236,11 @@ done <<< "${SCHEMA_FIELDS_FORWARD}"
 # 5. Inverse check (conservative): prose tokens that look like field names
 #    but are not in the schema (full vocabulary including deep nested fields).
 #
-# Exclusion-context filter: skip lines that explicitly call out non-field
-# names as being outside the schema. Patterns that mark a line as an
-# exclusion context (any of these substrings in the line):
-#   - "not a state field" or "not part of this schema" (direct exclusion)
-#   - "**not** part of this schema" (Markdown bold variant)
-#   - "intentionally absent" (explicit absence note)
-#   - "Excluded" (section heading or inline marker)
-#   - "NOT stored" or "Derived" (non-stored derived field notices)
-#   - "Do not add" (follow-up instruction after exclusion list)
-#   - "separate plan" (cluster 5 separate-plan exclusion marker)
+# Uses INVERSE_PROSE (the manual prose with the "### Derived — NOT stored"
+# and "### Excluded — separate plan" subsections structurally removed) so
+# that non-field identifiers documented in those subsections are not flagged.
 # ---------------------------------------------------------------------------
-EXCLUSION_PATTERN='not a state field|intentionally absent|not part of this schema|\*\*not\*\* part of this schema|Excluded|NOT stored|Derived|Do not add|separate plan'
-
-PROSE_CANDIDATES="$(printf '%s\n' "${MANUAL_PROSE}" | grep -v -E "${EXCLUSION_PATTERN}" | grep -oE '\`[a-z][a-z0-9_]+\`' | tr -d '`' | sort -u || true)"
+PROSE_CANDIDATES="$(printf '%s\n' "${INVERSE_PROSE}" | grep -oE '\`[a-z][a-z0-9_]+\`' | tr -d '`' | sort -u || true)"
 
 STALE_REFS=()
 while IFS= read -r token; do

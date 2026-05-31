@@ -53,6 +53,12 @@ fi
 RECIPIENT="$1"
 shift
 
+# Reject a blank recipient so we never XADD to a degenerate "inbox:" stream.
+if [[ -z "${RECIPIENT}" ]]; then
+    printf 'Error: answer requires a recipient.\n' >&2
+    exit 1
+fi
+
 MESSAGE_TEXT=""
 MESSAGE_FILE=""
 
@@ -106,9 +112,10 @@ FULL_MSG="$(jq -cn \
 
 STREAM="inbox:${RECIPIENT}"
 
-# Ensure the consumer group exists (idempotent).
-xfleet_redis XGROUP CREATE "${STREAM}" worker 0 MKSTREAM >/dev/null 2>&1 || true
-
+# The recipient's listener owns consumer-group creation (listen.sh does
+# XGROUP CREATE ... <group> 0 MKSTREAM, reading from id 0 so it sees messages
+# added before the group existed). Senders only XADD.
+#
 # Publish via XADD.
 xfleet_redis XADD "${STREAM}" MAXLEN "~" 200 "*" data "${FULL_MSG}" >/dev/null
 

@@ -102,9 +102,10 @@ FULL_MSG="$(jq -cn \
 
 STREAM="inbox:${RECIPIENT}"
 
-# Ensure the consumer group exists (idempotent — identical to ack/listen pattern).
-xfleet_redis XGROUP CREATE "${STREAM}" worker 0 MKSTREAM >/dev/null 2>&1 || true
-
+# The recipient's listener owns consumer-group creation (listen.sh does
+# XGROUP CREATE ... <group> 0 MKSTREAM, reading from id 0 so it sees messages
+# added before the group existed). Senders only XADD.
+#
 # Publish via XADD. Use a modest MAXLEN cap consistent with wave-1 worker inboxes.
 xfleet_redis XADD "${STREAM}" MAXLEN "~" 200 "*" data "${FULL_MSG}" >/dev/null
 

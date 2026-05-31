@@ -68,8 +68,13 @@ resolve_message_content() {
     fi
 
     # Resolve the coordination root too (ensure no trailing slash trickery).
+    # A failure here MUST be hard — falling back to the unresolved path would
+    # undermine the SC-5 symlink/escape protection below.
     local resolved_root
-    resolved_root="$(realpath "${coord_root}" 2>/dev/null)" || resolved_root="${coord_root}"
+    if ! resolved_root="$(realpath "${coord_root}" 2>/dev/null)"; then
+        printf 'Error: XFLEET_COORDINATION_ROOT "%s" could not be resolved.\n' "${coord_root}" >&2
+        exit 1
+    fi
 
     # Ensure resolved path lies under resolved_root.
     # Add a trailing slash to root so "prefix check" doesn't falsely match a

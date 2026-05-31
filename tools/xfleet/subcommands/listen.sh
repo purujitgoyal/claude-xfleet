@@ -18,6 +18,8 @@ source "${_LISTEN_DIR}/../lib/strict-mode.sh"
 source "${_LISTEN_DIR}/../lib/redis.sh"
 # shellcheck source=../lib/state-io.sh
 source "${_LISTEN_DIR}/../lib/state-io.sh"
+# shellcheck source=../lib/listener.sh
+source "${_LISTEN_DIR}/../lib/listener.sh"
 
 # ---------------------------------------------------------------------------
 # Arg parsing
@@ -67,6 +69,13 @@ fi
 # Ensure consumer group exists (idempotent)
 # ---------------------------------------------------------------------------
 xfleet_redis XGROUP CREATE "${STREAM}" "${GROUP}" 0 MKSTREAM >/dev/null 2>&1 || true
+
+# ---------------------------------------------------------------------------
+# Reap this session's own prior listener before starting a fresh one (F-8:
+# never run two own-listeners for the same worker). Stops ONLY the recorded
+# listen_bash_id — never pgrep-kills peer sessions' listeners (F-37).
+# ---------------------------------------------------------------------------
+listener_stop_own "${NAME}"
 
 # ---------------------------------------------------------------------------
 # Background listener loop: XREADGROUP in a truly-detached process group.

@@ -10,9 +10,9 @@
 # bash command's. This command surfaces the state + a pointer so the agent can
 # do that re-engagement; it does not parse handoff sections itself.
 #
-# Listener restart here is a plain (re)start via the `listen` subcommand.
-# Restart-safety across parallel sessions is added by the listener task
-# (lib/listener.sh); until then this is a basic fresh start.
+# Listener restart goes through lib/listener.sh's listener_restart: it warns
+# about foreign listeners (never kills them), reaps this session's own recorded
+# listener, then starts fresh and records the new listen_bash_id atomically.
 #
 # Usage:
 #   xfleet resume [<worker>] [--standby]
@@ -32,6 +32,8 @@ _RESUME_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_RESUME_DIR}/../lib/strict-mode.sh"
 # shellcheck source=../lib/state-io.sh
 source "${_RESUME_DIR}/../lib/state-io.sh"
+# shellcheck source=../lib/listener.sh
+source "${_RESUME_DIR}/../lib/listener.sh"
 
 # ---------------------------------------------------------------------------
 # Arg parsing
@@ -81,10 +83,10 @@ TASK_DESC="$(printf '%s' "${STATE}" | jq -r '.current_task.description // ""')"
 printf 'resume: worker=%s phase=%s status=%s\n' "${WORKER}" "${CUR_PHASE}" "${CUR_STATUS}"
 
 # ---------------------------------------------------------------------------
-# 2) Listener restart — basic (re)start via the listen subcommand. Restart
-#    safety across parallel sessions is the listener task's concern.
+# 2) Listener restart — safe restart via listener_restart (warns about foreign
+#    listeners, reaps this session's own recorded listener, starts fresh).
 # ---------------------------------------------------------------------------
-bash "${_RESUME_DIR}/listen.sh" "${WORKER}"
+listener_restart "${WORKER}"
 
 # ---------------------------------------------------------------------------
 # 3) Standby flag + 4) auto-continue logic (own-state write — worker file).

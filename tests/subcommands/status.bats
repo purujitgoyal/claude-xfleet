@@ -189,3 +189,38 @@ teardown() {
     # Should note absence of orchestrator state
     [[ "${output}" =~ [Nn]o.*orchestrator ]] || [[ "${output}" =~ [Nn]one ]] || [[ "${output}" =~ [Nn]ot.*found ]] || [[ "${output}" =~ "(none)" ]]
 }
+
+# ---------------------------------------------------------------------------
+# (g) Malformed state file degrades gracefully — one corrupt .json must not
+#     abort the whole dump (set -e + jq exit 5). status still exits 0 and
+#     reports the valid entries plus an "(unreadable)" note for the bad one.
+# ---------------------------------------------------------------------------
+
+@test "(g) status exits 0 when a worker .json is malformed" {
+    printf '%s' "${VALID_WORKER_IDLE}" > "${COORD_ROOT}/state/alice.json"
+    printf '{ not valid json !!!' > "${COORD_ROOT}/state/broken.json"
+    run bash "${STATUS_SH}"
+    [ "$status" -eq 0 ]
+}
+
+@test "(g) status still reports valid workers when another worker .json is malformed" {
+    printf '%s' "${VALID_WORKER_IDLE}" > "${COORD_ROOT}/state/alice.json"
+    printf '{ not valid json !!!' > "${COORD_ROOT}/state/broken.json"
+    run bash "${STATUS_SH}"
+    [ "$status" -eq 0 ]
+    # The valid worker is still reported...
+    [[ "${output}" =~ "alice" ]]
+    # ...and the malformed one is flagged unreadable, not silently dropped.
+    [[ "${output}" =~ "broken" ]]
+    [[ "${output}" =~ [Uu]nreadable ]]
+}
+
+@test "(g) status exits 0 when _orchestrator.json is malformed" {
+    printf '{ not valid json !!!' > "${COORD_ROOT}/state/_orchestrator.json"
+    printf '%s' "${VALID_WORKER_IDLE}" > "${COORD_ROOT}/state/alice.json"
+    run bash "${STATUS_SH}"
+    [ "$status" -eq 0 ]
+    # Orchestrator flagged unreadable; the valid worker still reported.
+    [[ "${output}" =~ [Uu]nreadable ]]
+    [[ "${output}" =~ "alice" ]]
+}

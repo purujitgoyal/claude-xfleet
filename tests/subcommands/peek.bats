@@ -14,22 +14,9 @@ bats_require_minimum_version 1.5.0
 
 PEEK_SH="${BATS_TEST_DIRNAME}/../../tools/xfleet/subcommands/peek.sh"
 
-REDIS_URL="${XFLEET_REDIS_URL:-redis://localhost:6379}"
-
-# ---------------------------------------------------------------------------
-# Redis availability guard
-# ---------------------------------------------------------------------------
-redis_available() {
-    redis-cli -u "${REDIS_URL}" ping >/dev/null 2>&1
-}
-
-# Generate a unique stream name per test to avoid cross-contamination.
-unique_name() {
-    # Sanitize BATS_TEST_NAME: replace spaces and special chars with underscores
-    local sanitized
-    sanitized="$(printf '%s' "${BATS_TEST_NAME}" | tr -cs 'a-zA-Z0-9_' '_')"
-    printf 'test_%s_%s' "${sanitized}" "$$"
-}
+# Shared Redis-availability guard + default URL (single source of truth, SC-3).
+load "../lib/redis-guard.bash"
+REDIS_URL="${XFLEET_TEST_REDIS_URL}"
 
 setup() {
     STREAM_NAME="$(unique_name)"
@@ -53,8 +40,8 @@ teardown() {
 }
 
 @test "(a) peek with no args prints usage" {
-    run bash "${PEEK_SH}"
-    [[ "${output}" =~ [Uu]sage ]] || [[ "${output}" =~ [Uu]sage ]] || [[ "${output}" =~ "peek" ]]
+    run --separate-stderr bash "${PEEK_SH}"
+    [[ "${stderr}" =~ [Uu]sage ]] || [[ "${stderr}" =~ "peek" ]]
 }
 
 # ---------------------------------------------------------------------------

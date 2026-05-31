@@ -15,17 +15,9 @@ bats_require_minimum_version 1.5.0
 
 ACK_SH="${BATS_TEST_DIRNAME}/../../tools/xfleet/subcommands/ack.sh"
 
-REDIS_URL="${XFLEET_REDIS_URL:-redis://localhost:6379}"
-
-redis_available() {
-    redis-cli -u "${REDIS_URL}" ping >/dev/null 2>&1
-}
-
-unique_name() {
-    local sanitized
-    sanitized="$(printf '%s' "${BATS_TEST_NAME}" | tr -cs 'a-zA-Z0-9_' '_')"
-    printf 'test_%s_%s' "${sanitized}" "$$"
-}
+# Shared Redis-availability guard + default URL (single source of truth, SC-3).
+load "../lib/redis-guard.bash"
+REDIS_URL="${XFLEET_TEST_REDIS_URL}"
 
 setup() {
     STREAM_NAME="$(unique_name)"

@@ -69,13 +69,18 @@ fi
 xfleet_redis XGROUP CREATE "${STREAM}" "${GROUP}" 0 MKSTREAM >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
-# Background listener loop: XREADGROUP in a truly-detached process.
+# Background listener loop: XREADGROUP in a truly-detached process group.
 # Basic surface only — Task 26 handles atomic restart + send-with-verify.
 #
-# We write the listener body to a temp script and launch it via `nohup bash`
-# so the process is fully detached (no inherited fds from the caller).
-# This is required for BATS test isolation: without true detachment, BATS
-# waits indefinitely for the background process to exit.
+# We write the listener body to a temp script and launch it via `setsid bash`
+# so the listener becomes its own process-group leader (PGID == its PID). This
+# lets a caller kill the WHOLE subtree (the listener bash + its forked
+# `redis-cli BLOCK` child) with a single process-group signal `kill -- -PGID`,
+# preventing leaked Redis connections. The listener also installs a TERM/EXIT
+# trap that reaps its redis-cli child as belt-and-suspenders.
+#
+# setsid additionally detaches stdin/stdout/stderr from the caller so BATS (or
+# any other caller) never inherits the listener's fds and never waits on it.
 # ---------------------------------------------------------------------------
 LISTENER_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/xfleet-listen-XXXXXX")"
 
@@ -83,8 +88,13 @@ LISTENER_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/xfleet-listen-XXXXXX")"
 # complex quoting — write each piece separately).
 printf '#!/usr/bin/env bash\n' > "${LISTENER_SCRIPT}"
 printf 'set -euo pipefail\n' >> "${LISTENER_SCRIPT}"
-# Embed the env vars and arguments as shell assignments.
-printf 'XFLEET_REDIS_URL=%s\n' "$(printf '%s' "${XFLEET_REDIS_URL:-redis://127.0.0.1:6379}" | sed "s/'/'\\\\''/g")" >> "${LISTENER_SCRIPT}"
+# Reap the redis-cli child when this listener bash is signalled/exits, so the
+# inner BLOCK call never survives a process-group kill of the leader.
+printf "trap 'pkill -P \$\$ 2>/dev/null || true' TERM EXIT\n" >> "${LISTENER_SCRIPT}"
+# Embed the env vars and arguments as shell assignments. Single-quote the URL
+# so a password-bearing URL (redis://:secret@host) is not syntactically broken;
+# escape any embedded single quotes the bash-3.2-safe way.
+printf "XFLEET_REDIS_URL='%s'\n" "$(printf '%s' "${XFLEET_REDIS_URL:-redis://127.0.0.1:6379}" | sed "s/'/'\\\\''/g")" >> "${LISTENER_SCRIPT}"
 printf 'STREAM=%s\n' "${STREAM}" >> "${LISTENER_SCRIPT}"
 printf 'GROUP=%s\n' "${GROUP}" >> "${LISTENER_SCRIPT}"
 printf 'CONSUMER=%s\n' "${CONSUMER}" >> "${LISTENER_SCRIPT}"
@@ -124,14 +134,22 @@ LISTENER_EOF
 
 chmod +x "${LISTENER_SCRIPT}"
 
-# nohup launches the listener with stdin/stdout/stderr all redirected away from
-# the parent shell, so BATS (or any other caller) never inherits our listener's
-# fds and never waits on it.
-nohup bash "${LISTENER_SCRIPT}" </dev/null >/dev/null 2>&1 &
+# Launch as its own session/process-group leader when setsid is available, so
+# the recorded PID == its PGID and a caller can kill the whole subtree
+# (listener bash + its redis-cli BLOCK child) with one `kill -- -PGID` signal.
+# When setsid is absent (plain macOS without util-linux), fall back to a normal
+# background launch — the listener's TERM/EXIT trap still reaps its redis-cli
+# child, so no connection leaks either way. stdin/stdout/stderr are redirected
+# so BATS (or any caller) never inherits the listener's fds and never waits.
+if command -v setsid >/dev/null 2>&1; then
+    setsid bash "${LISTENER_SCRIPT}" </dev/null >/dev/null 2>&1 &
+else
+    bash "${LISTENER_SCRIPT}" </dev/null >/dev/null 2>&1 &
+fi
 LISTENER_PID=$!
 disown "${LISTENER_PID}" 2>/dev/null || true
 
-# Clean up the temp script after a brief moment (listener has exec'd by then).
+# Clean up the temp script after a brief moment (listener has read it by then).
 ( sleep 2 && rm -f "${LISTENER_SCRIPT}" ) </dev/null >/dev/null 2>&1 &
 disown $! 2>/dev/null || true
 

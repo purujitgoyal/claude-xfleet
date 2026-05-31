@@ -28,12 +28,19 @@ ORCH_FILE="${STATE_DIR}/_orchestrator.json"
 
 printf '=== Orchestrator ===\n'
 if [[ -f "${ORCH_FILE}" ]]; then
-    local_cycles="$(jq -r '.cycles // "n/a"' "${ORCH_FILE}")"
-    local_engaged="$(jq -r '.human_engaged.active // false' "${ORCH_FILE}")"
-    local_idle_notify="$(jq -r '.last_all_idle_notify // "null"' "${ORCH_FILE}")"
-    printf '  cycles:               %s\n' "${local_cycles}"
-    printf '  human_engaged.active: %s\n' "${local_engaged}"
-    printf '  last_all_idle_notify: %s\n' "${local_idle_notify}"
+    # Guard against a corrupt file: a failing jq must not abort the whole dump
+    # under `set -e` (jq exits 5 on parse error). Capture with `|| true` and
+    # degrade to an "(unreadable)" note.
+    if ! jq -e . "${ORCH_FILE}" >/dev/null 2>&1; then
+        printf '  (unreadable: %s)\n' "${ORCH_FILE}"
+    else
+        local_cycles="$(jq -r '.cycles // "n/a"' "${ORCH_FILE}" 2>/dev/null || printf 'n/a')"
+        local_engaged="$(jq -r '.human_engaged.active // false' "${ORCH_FILE}" 2>/dev/null || printf 'n/a')"
+        local_idle_notify="$(jq -r '.last_all_idle_notify // "null"' "${ORCH_FILE}" 2>/dev/null || printf 'n/a')"
+        printf '  cycles:               %s\n' "${local_cycles}"
+        printf '  human_engaged.active: %s\n' "${local_engaged}"
+        printf '  last_all_idle_notify: %s\n' "${local_idle_notify}"
+    fi
 else
     printf '  (no orchestrator state yet)\n'
 fi
@@ -54,13 +61,22 @@ for wf in "${STATE_DIR}"/*.json; do
     worker_name="${base%.json}"
     worker_found=1
 
-    w_phase="$(jq -r '.current_phase // "n/a"' "${wf}")"
-    w_status="$(jq -r '.status // "n/a"' "${wf}")"
-    w_context="$(jq -r '.context_pct // "n/a"' "${wf}")"
-    w_updated="$(jq -r '.last_updated // "n/a"' "${wf}")"
-    w_task="$(jq -r 'if .current_task != null then .current_task.description else "null" end' "${wf}")"
-
     printf '  [%s]\n' "${worker_name}"
+
+    # Guard against a corrupt worker file: one bad .json must not abort the
+    # whole dump (jq exits 5 on parse error under `set -e`). Validate first,
+    # degrade to "(unreadable)", and keep reporting the other workers.
+    if ! jq -e . "${wf}" >/dev/null 2>&1; then
+        printf '    (unreadable: %s)\n' "${wf}"
+        continue
+    fi
+
+    w_phase="$(jq -r '.current_phase // "n/a"' "${wf}" 2>/dev/null || printf 'n/a')"
+    w_status="$(jq -r '.status // "n/a"' "${wf}" 2>/dev/null || printf 'n/a')"
+    w_context="$(jq -r '.context_pct // "n/a"' "${wf}" 2>/dev/null || printf 'n/a')"
+    w_updated="$(jq -r '.last_updated // "n/a"' "${wf}" 2>/dev/null || printf 'n/a')"
+    w_task="$(jq -r 'if .current_task != null then .current_task.description else "null" end' "${wf}" 2>/dev/null || printf 'n/a')"
+
     printf '    current_phase: %s\n' "${w_phase}"
     printf '    status:        %s\n' "${w_status}"
     printf '    context_pct:   %s\n' "${w_context}"

@@ -15,5 +15,5 @@ source "${_REDIS_SH_DIR}/strict-mode.sh"
 
 # xfleet_redis <redis-cli-args...>
 xfleet_redis() {
-    redis-cli -u "${XFLEET_REDIS_URL:-redis://localhost:6379}" "$@"
+    redis-cli -u "${XFLEET_REDIS_URL:-redis://127.0.0.1:6379}" "$@"
 }

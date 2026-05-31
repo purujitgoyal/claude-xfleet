@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # directive-ack-handler.sh — Reflexive handler for directive-ack (Task 23).
 #
-# This script is NOT a user-facing subcommand. It is invoked internally by
-# directive.sh as part of the orchestrator→worker directive handshake. Per
-# messaging.md (f), reflexive handlers are never user-invocable and never
+# This script is NOT a user-facing subcommand. It is invoked by the worker's
+# inbox listener via dispatch_message when a "directive" wire message arrives.
+# Per messaging.md (f), reflexive handlers are never user-invocable and never
 # appear in the subcommand registry.
 #
 # Responsibilities:
@@ -17,7 +17,7 @@
 # Writer ownership: this handler writes ONLY {worker}.json — never
 # _orchestrator.json. The state_update_field call uses XFLEET_WORKER_NAME.
 #
-# Usage (internal, called by directive.sh):
+# Usage (internal, called by listener via dispatch_message on inbound directive):
 #   directive-ack-handler.sh <target-worker> <directive-id> <expected-action> <scope> <concern-id>
 #
 # Arguments:

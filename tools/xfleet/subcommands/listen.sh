@@ -84,6 +84,11 @@ xfleet_redis XGROUP CREATE "${STREAM}" "${GROUP}" 0 MKSTREAM >/dev/null 2>&1 || 
 # ---------------------------------------------------------------------------
 LISTENER_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/xfleet-listen-XXXXXX")"
 
+# Resolve plugin root here in the parent process so we can embed it into the
+# temp script as CLAUDE_PLUGIN_ROOT (dispatch.sh uses this to find handlers).
+_LISTEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${_LISTEN_DIR}/../../.." && pwd)}"
+
 # Capture env vars for the listener script (bash-3.2 portable: no heredoc with
 # complex quoting — write each piece separately).
 printf '#!/usr/bin/env bash\n' > "${LISTENER_SCRIPT}"
@@ -91,10 +96,14 @@ printf 'set -euo pipefail\n' >> "${LISTENER_SCRIPT}"
 # Reap the redis-cli child when this listener bash is signalled/exits, so the
 # inner BLOCK call never survives a process-group kill of the leader.
 printf "trap 'pkill -P \$\$ 2>/dev/null || true' TERM EXIT\n" >> "${LISTENER_SCRIPT}"
-# Embed the env vars and arguments as shell assignments. Single-quote the URL
-# so a password-bearing URL (redis://:secret@host) is not syntactically broken;
+# Embed the env vars and arguments as shell assignments. Single-quote all values
+# so special characters (e.g. passwords in URLs, paths with spaces) are safe;
 # escape any embedded single quotes the bash-3.2-safe way.
-printf "XFLEET_REDIS_URL='%s'\n" "$(printf '%s' "${XFLEET_REDIS_URL:-redis://127.0.0.1:6379}" | sed "s/'/'\\\\''/g")" >> "${LISTENER_SCRIPT}"
+printf "export XFLEET_REDIS_URL='%s'\n" "$(printf '%s' "${XFLEET_REDIS_URL:-redis://127.0.0.1:6379}" | sed "s/'/'\\\\''/g")" >> "${LISTENER_SCRIPT}"
+printf "export XFLEET_ROLE='%s'\n" "$(printf '%s' "${XFLEET_ROLE:-}" | sed "s/'/'\\\\''/g")" >> "${LISTENER_SCRIPT}"
+printf "export XFLEET_WORKER_NAME='%s'\n" "$(printf '%s' "${XFLEET_WORKER_NAME:-}" | sed "s/'/'\\\\''/g")" >> "${LISTENER_SCRIPT}"
+printf "export XFLEET_COORDINATION_ROOT='%s'\n" "$(printf '%s' "${XFLEET_COORDINATION_ROOT:-}" | sed "s/'/'\\\\''/g")" >> "${LISTENER_SCRIPT}"
+printf "export CLAUDE_PLUGIN_ROOT='%s'\n" "$(printf '%s' "${PLUGIN_ROOT}" | sed "s/'/'\\\\''/g")" >> "${LISTENER_SCRIPT}"
 printf 'STREAM=%s\n' "${STREAM}" >> "${LISTENER_SCRIPT}"
 printf 'GROUP=%s\n' "${GROUP}" >> "${LISTENER_SCRIPT}"
 printf 'CONSUMER=%s\n' "${CONSUMER}" >> "${LISTENER_SCRIPT}"
@@ -102,6 +111,11 @@ printf 'CYCLE_MS=300000\n' >> "${LISTENER_SCRIPT}"
 # Write the listener body (pending recovery + blocking loop).
 cat >> "${LISTENER_SCRIPT}" << 'LISTENER_EOF'
 xfleet_redis() { redis-cli -u "${XFLEET_REDIS_URL}" "$@"; }
+
+# Source dispatch lib (needs XFLEET_REDIS_URL already exported above so
+# redis.sh picks it up; CLAUDE_PLUGIN_ROOT is also exported above).
+# shellcheck source=../lib/dispatch.sh
+source "${CLAUDE_PLUGIN_ROOT}/tools/xfleet/lib/dispatch.sh"
 
 # Pending recovery
 while true; do
@@ -111,7 +125,10 @@ while true; do
         if [[ "${line_count}" -ge 4 ]]; then
             stream_id="$(printf '%s' "${PENDING}" | sed -n '2p')"
             data_value="$(printf '%s' "${PENDING}" | sed -n '4p')"
-            printf '%s' "${data_value}" | jq --arg sid "${stream_id}" '. + {_stream_id: $sid}' 2>/dev/null || true
+            enriched="$(printf '%s' "${data_value}" | jq --arg sid "${stream_id}" '. + {_stream_id: $sid}' 2>/dev/null)" || true
+            dispatch_message "${data_value}" || { printf 'listen: dispatch failed for pending stream_id %s; leaving unacked\n' "${stream_id}" >&2; continue; }
+            xfleet_redis XACK "${STREAM}" "${GROUP}" "${stream_id}" >/dev/null
+            printf '%s\n' "${enriched}"
             continue
         fi
     fi
@@ -126,7 +143,10 @@ while true; do
         if [[ "${line_count}" -ge 4 ]]; then
             stream_id="$(printf '%s' "${RESULT}" | sed -n '2p')"
             data_value="$(printf '%s' "${RESULT}" | sed -n '4p')"
-            printf '%s' "${data_value}" | jq --arg sid "${stream_id}" '. + {_stream_id: $sid}' 2>/dev/null || true
+            enriched="$(printf '%s' "${data_value}" | jq --arg sid "${stream_id}" '. + {_stream_id: $sid}' 2>/dev/null)" || true
+            dispatch_message "${data_value}" || { printf 'listen: dispatch failed for stream_id %s; leaving unacked\n' "${stream_id}" >&2; continue; }
+            xfleet_redis XACK "${STREAM}" "${GROUP}" "${stream_id}" >/dev/null
+            printf '%s\n' "${enriched}"
         fi
     fi
 done

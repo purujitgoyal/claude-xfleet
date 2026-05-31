@@ -30,6 +30,8 @@ source "${_RESOLUTION_DIR}/../lib/sender-authority.sh"
 source "${_RESOLUTION_DIR}/../lib/message-content.sh"
 # shellcheck source=../lib/state-io.sh
 source "${_RESOLUTION_DIR}/../lib/state-io.sh"
+# shellcheck source=../lib/listener.sh
+source "${_RESOLUTION_DIR}/../lib/listener.sh"
 
 # ---------------------------------------------------------------------------
 # Role check — worker only (messaging.md b)
@@ -176,6 +178,9 @@ xfleet_redis XADD "inbox:${ORCH_RECIPIENT}" MAXLEN "~" 200 "*" data "${SUMMARY_M
 # ---------------------------------------------------------------------------
 state_update_field "${WORKER_STATE_PATH}" \
     ". + {confirmed_closed_concerns: ((.confirmed_closed_concerns // []) + [\"${CONCERN_ID}\"] | unique)}"
+
+# F-42 two-call pattern: ensure our own listener is live so the response is not dropped.
+send_with_verify "${XFLEET_WORKER_NAME}"
 
 printf 'resolution: sent to %s (msg_id: %s, concern_id: %s); resolution-ack + resolution-summary emitted; concern marked closed\n' \
     "${RECIPIENT}" "${MSG_ID}" "${CONCERN_ID}"

@@ -28,6 +28,8 @@ source "${_CONCERN_DIR}/../lib/sender-authority.sh"
 source "${_CONCERN_DIR}/../lib/message-content.sh"
 # shellcheck source=../lib/round-counter.sh
 source "${_CONCERN_DIR}/../lib/round-counter.sh"
+# shellcheck source=../lib/listener.sh
+source "${_CONCERN_DIR}/../lib/listener.sh"
 
 # ---------------------------------------------------------------------------
 # Role check — worker only (messaging.md b)
@@ -122,6 +124,9 @@ STREAM="inbox:${RECIPIENT}"
 
 # Senders only XADD — the listener owns consumer-group creation.
 xfleet_redis XADD "${STREAM}" MAXLEN "~" 200 "*" data "${FULL_MSG}" >/dev/null
+
+# F-42 two-call pattern: ensure our own listener is live so the response is not dropped.
+send_with_verify "${XFLEET_WORKER_NAME}"
 
 printf 'concern: sent to %s (msg_id: %s, concern_id: %s, round: %s)\n' \
     "${RECIPIENT}" "${MSG_ID}" "${CONCERN_ID}" "${ROUND}"

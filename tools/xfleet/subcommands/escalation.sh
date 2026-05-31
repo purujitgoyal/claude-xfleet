@@ -48,6 +48,8 @@ source "${_ESCALATION_DIR}/../lib/redis.sh"
 source "${_ESCALATION_DIR}/../lib/sender-authority.sh"
 # shellcheck source=../lib/reason-router.sh
 source "${_ESCALATION_DIR}/../lib/reason-router.sh"
+# shellcheck source=../lib/listener.sh
+source "${_ESCALATION_DIR}/../lib/listener.sh"
 
 # ---------------------------------------------------------------------------
 # Role check — worker only (messaging.md b)
@@ -263,6 +265,9 @@ fi
 # Senders do NOT create consumer groups; listeners own that. No state writes.
 # ---------------------------------------------------------------------------
 xfleet_redis XADD "inbox:${RECIPIENT}" MAXLEN "~" 200 "*" data "${ESCALATION_MSG}" >/dev/null
+
+# F-42 two-call pattern: ensure our own listener is live so the response is not dropped.
+send_with_verify "${XFLEET_WORKER_NAME}"
 
 # ---------------------------------------------------------------------------
 # Report

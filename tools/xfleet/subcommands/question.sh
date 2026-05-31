@@ -25,6 +25,8 @@ source "${_QUESTION_DIR}/../lib/redis.sh"
 source "${_QUESTION_DIR}/../lib/sender-authority.sh"
 # shellcheck source=../lib/message-content.sh
 source "${_QUESTION_DIR}/../lib/message-content.sh"
+# shellcheck source=../lib/listener.sh
+source "${_QUESTION_DIR}/../lib/listener.sh"
 
 # ---------------------------------------------------------------------------
 # Role check — worker only
@@ -108,5 +110,8 @@ STREAM="inbox:${RECIPIENT}"
 #
 # Publish via XADD. Use a modest MAXLEN cap consistent with wave-1 worker inboxes.
 xfleet_redis XADD "${STREAM}" MAXLEN "~" 200 "*" data "${FULL_MSG}" >/dev/null
+
+# F-42 two-call pattern: ensure our own listener is live so the response is not dropped.
+send_with_verify "${XFLEET_WORKER_NAME}"
 
 printf 'question: sent to %s (msg_id: %s)\n' "${RECIPIENT}" "${MSG_ID}"

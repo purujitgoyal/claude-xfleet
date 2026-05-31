@@ -25,6 +25,24 @@
 #       listen subcommand (which itself stops the recorded own-listener before
 #       launching a fresh one and records the new listen_bash_id atomically).
 #
+#   listener_alive <self>
+#       Return 0 if <self>'s recorded listen_bash_id maps to a live process,
+#       1 otherwise (including when nothing is recorded).
+#
+#   send_with_verify <self>
+#       The F-42 "two-call pattern" post-send step. The caller has ALREADY
+#       published its wire message (each typed subcommand builds + XADDs its own
+#       message). This verifies <self>'s own listener is still alive so a peer
+#       RESPONSE is not silently dropped; if it is not alive, it restarts the
+#       listener. No-op (with a note) when <self> has no recorded listen_bash_id
+#       — e.g. the orchestrator, whose v1 state schema does not track one.
+#
+# Scope note (F-42 vs plan): F-42's mechanism is verify-OWN-listener (so the
+# response comes back), keyed on the worker's listen_bash_id. The plan's
+# "GET on recipient to confirm receipt" wording does not match F-42's intent
+# and does not fit the typed-subcommand architecture, so this implements the
+# F-42 own-listener-liveness check.
+#
 # Usage (source, do not execute directly):
 #   source tools/xfleet/lib/listener.sh
 
@@ -149,4 +167,47 @@ listener_restart() {
         return 1
     fi
     bash "${_LISTENER_LISTEN_SH}" "${worker}"
+}
+
+# ---------------------------------------------------------------------------
+# listener_alive <self>
+# ---------------------------------------------------------------------------
+listener_alive() {
+    local self="$1"
+    local pid
+    pid="$(_listener_recorded_pid "${self}")"
+    [[ -z "${pid}" ]] && return 1
+    # kill -0 tests for existence + signalability without sending a signal.
+    kill -0 "${pid}" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# send_with_verify <self>
+# Post-send F-42 step: ensure <self>'s own listener is live (restart if not),
+# so a peer response is not dropped. The caller already XADD'd its message.
+# ---------------------------------------------------------------------------
+send_with_verify() {
+    local self="$1"
+    if [[ -z "${self}" ]]; then
+        printf 'send_with_verify: self name required\n' >&2
+        return 1
+    fi
+
+    # No recorded listener (e.g. orchestrator — no listen_bash_id in v1 schema):
+    # nothing to verify; surface a note and succeed.
+    local pid
+    pid="$(_listener_recorded_pid "${self}")"
+    if [[ -z "${pid}" ]]; then
+        printf 'send_with_verify: no recorded listen_bash_id for %s; skipping listener verify.\n' "${self}" >&2
+        return 0
+    fi
+
+    if listener_alive "${self}"; then
+        printf 'send_with_verify: own listener (PID %s) verified live for %s.\n' "${pid}" "${self}" >&2
+        return 0
+    fi
+
+    # Listener is dead — restart so the response is not dropped (F-42).
+    printf 'send_with_verify: own listener (PID %s) for %s is not alive; restarting.\n' "${pid}" "${self}" >&2
+    listener_restart "${self}"
 }

@@ -19,6 +19,10 @@
 #   state_update_field <path> <jq-expr>
 #       Read current <path>, apply <jq-expr> via jq, write back via
 #       state_write_atomic (inherits validation + atomicity).
+#       <jq-expr> is passed to jq as a single positional argument (the jq
+#       program), so shell metacharacters in it are not re-interpreted by the
+#       shell; still, callers must not interpolate untrusted input into the
+#       expression — it is executed as a jq program with full jq capabilities.
 #
 #   state_migrate_if_needed <path>
 #       Check schema_version in <path>:
@@ -90,31 +94,41 @@ state_write_atomic() {
     # Ensure the target directory exists.
     mkdir -p "${target_dir}"
 
-    # Stage to a temp file in the SAME directory as the target (same fs → atomic mv).
-    local tmp
-    tmp="$(mktemp "${target_dir}/.tmp.XXXXXX")"
-
-    # Write content to temp file.
-    printf '%s' "${content}" > "${tmp}"
-
-    # Infer def from TARGET path's basename (not temp file's random name).
+    # Infer def from TARGET path's basename (not the temp file's random name).
     local def
     def="$(_infer_def "${target}")"
 
-    # Validate the temp file with the explicit def override so inference
-    # on the random temp filename is bypassed.
-    local validate_exit=0
-    "${_STATE_IO_VALIDATE_SH}" "${tmp}" "${def}" >&2 || validate_exit=$?
+    # The stage→validate→mv critical section runs in a subshell with a local
+    # EXIT trap so the temp file is removed on ANY exit path — normal return,
+    # validation failure, a set -e abort, or a signal (INT/TERM). The trap is
+    # scoped to the subshell, so a caller's own traps are never clobbered. The
+    # subshell's exit status becomes the function's return code, preserving the
+    # validator's exit code on failure (test (d) still sees non-zero).
+    (
+        # Initialize first so the EXIT trap never references an unset var
+        # under set -u, then assign the real staging path.
+        tmp=""
+        trap 'rm -f "${tmp}"' EXIT INT TERM
+        tmp="$(mktemp "${target_dir}/.tmp.XXXXXX")"
 
-    if [[ "${validate_exit}" -ne 0 ]]; then
-        rm -f "${tmp}"
-        printf 'state_write_atomic: validation failed (exit %d) for %s\n' \
-            "${validate_exit}" "${target}" >&2
-        return "${validate_exit}"
-    fi
+        # Stage content.
+        printf '%s' "${content}" > "${tmp}"
 
-    # Validation passed — atomically replace the target.
-    mv -f "${tmp}" "${target}"
+        # Validate the temp file with the explicit def override so inference
+        # on the random temp filename is bypassed.
+        local validate_exit=0
+        "${_STATE_IO_VALIDATE_SH}" "${tmp}" "${def}" >&2 || validate_exit=$?
+
+        if [[ "${validate_exit}" -ne 0 ]]; then
+            printf 'state_write_atomic: validation failed (exit %d) for %s\n' \
+                "${validate_exit}" "${target}" >&2
+            exit "${validate_exit}"
+        fi
+
+        # Validation passed — atomically replace the target. On success the
+        # temp no longer exists, so the EXIT trap's rm -f is a harmless no-op.
+        mv -f "${tmp}" "${target}"
+    )
 }
 
 # ---------------------------------------------------------------------------
@@ -148,8 +162,17 @@ state_migrate_if_needed() {
     fi
 
     # Extract schema_version using jq (not python3 -c, per house rules).
+    # Capture jq's own exit code so a malformed/unreadable JSON file is
+    # distinguished from a well-formed file with no schema_version field.
     local sv
-    sv="$(jq -r '.schema_version // empty' "${path}" 2>/dev/null || true)"
+    local jq_exit=0
+    sv="$(jq -r '.schema_version // empty' "${path}" 2>/dev/null)" || jq_exit=$?
+
+    if [[ "${jq_exit}" -ne 0 ]]; then
+        printf 'state_migrate_if_needed: malformed or unreadable JSON in %s\n' \
+            "${path}" >&2
+        return 1
+    fi
 
     if [[ -z "${sv}" ]]; then
         printf 'state_migrate_if_needed: unknown or missing schema_version in %s; current plugin supports v1\n' \

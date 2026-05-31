@@ -116,8 +116,10 @@ VALID_WORKER='{
 }
 
 @test "(b) state_write_atomic leaves no temp files in target dir" {
-    local dir="${BATS_TMPDIR}/b_notmp"
-    mkdir -p "${dir}"
+    # Fresh unique dir so a stale temp from a prior run cannot poison the
+    # no-leak assertion (BATS_TMPDIR persists across runs).
+    local dir
+    dir="$(mktemp -d "${BATS_TMPDIR}/b_notmp.XXXXXX")"
     local target="${dir}/_orchestrator.json"
     run bash -c "source '${LIB}'; state_write_atomic '${target}' '${VALID_ORCHESTRATOR}'"
     [ "$status" -eq 0 ]
@@ -199,6 +201,9 @@ VALID_WORKER='{
 # Files here also use _orchestrator.json to test orchestrator-type rejection.
 # ---------------------------------------------------------------------------
 
+# Intentionally minimal-invalid: a single unknown top-level key to trip the
+# validator's additionalProperties=false rule. Not a realistic state shape —
+# its only job is to make validate-state.sh return non-zero.
 INVALID_CONTENT='{
   "schema_version": "1",
   "bogus_unknown_key_xyz": "bad"
@@ -241,8 +246,10 @@ INVALID_CONTENT='{
 }
 
 @test "(d) state_write_atomic does not leave temp files on validation failure" {
-    local dir="${BATS_TMPDIR}/d_notmp"
-    mkdir -p "${dir}"
+    # Use a fresh unique dir so a stale temp from a prior run cannot poison
+    # the no-leak assertion (BATS_TMPDIR persists across runs).
+    local dir
+    dir="$(mktemp -d "${BATS_TMPDIR}/d_notmp.XXXXXX")"
     local target="${dir}/_orchestrator.json"
     run bash -c "source '${LIB}'; state_write_atomic '${target}' '${INVALID_CONTENT}'"
     [ "$status" -ne 0 ]
@@ -297,57 +304,67 @@ WORKER_V2='{
 }
 
 # ---------------------------------------------------------------------------
-# (f) Torn reads do not occur — atomicity verified by tmp+mv property.
-#
-# Design note: The tmp+mv pattern guarantees that the target file is either
-# the old complete content or the new complete content — never a partial
-# write. This test demonstrates the property by:
-#   1. Staging content to a temp file in the same directory as the target.
-#   2. Showing that the target is unchanged until the mv completes.
-#   3. After mv, the target has the new complete content.
-# A "torn read" would require observing a partial file during the write;
-# since mv is atomic on a single filesystem, this cannot happen — the target
-# transitions atomically from old to new state with no intermediate partial
-# view.
+# (f) Torn reads do not occur — atomicity is a property of the LIBRARY's
+# tmp+mv discipline, so these tests DRIVE state_write_atomic (rather than
+# re-implementing mktemp+mv in the test body, which would test the OS, not
+# the library). The tmp+mv pattern guarantees the target is either the old
+# complete content or the new complete content — never a partial write — and
+# the staging temp never lingers. A "torn read" would require observing a
+# partial file mid-write; since mv is atomic on one filesystem and the temp
+# is replaced in a single rename, no intermediate partial view exists.
 # ---------------------------------------------------------------------------
 
-@test "(f) target is unchanged before mv completes (tmp+mv atomicity)" {
-    local dir="${BATS_TMPDIR}/f_atomic"
-    mkdir -p "${dir}"
+@test "(f) successful write: target replaced atomically and no temp lingers" {
+    # Fresh unique dir so a stale temp from a prior run cannot poison the
+    # no-leak assertion (BATS_TMPDIR persists across runs).
+    local dir
+    dir="$(mktemp -d "${BATS_TMPDIR}/f_success.XXXXXX")"
     local target="${dir}/_orchestrator.json"
-    # Write initial valid state
+    # Pre-existing old content.
     printf '%s' "${VALID_ORCHESTRATOR}" > "${target}"
-    local original_cycles
-    original_cycles="$(jq -r '.cycles' "${target}")"
 
-    # Manually simulate what state_write_atomic does:
-    # Stage to temp in same dir, then mv atomically.
-    local tmp
-    tmp="$(mktemp "${dir}/.tmp.XXXXXX")"
-    printf '%s' "${VALID_ORCHESTRATOR}" | jq '.cycles = 5' > "${tmp}"
+    # Drive the library with new content (cycles bumped to 5).
+    local new_content
+    new_content="$(printf '%s' "${VALID_ORCHESTRATOR}" | jq '.cycles = 5')"
+    run bash -c "source '${LIB}'; state_write_atomic '${target}' '${new_content}'"
+    [ "$status" -eq 0 ]
 
-    # Target is still the original BEFORE the mv
-    local pre_mv_cycles
-    pre_mv_cycles="$(jq -r '.cycles' "${target}")"
-    [ "${pre_mv_cycles}" = "${original_cycles}" ]
+    # Target holds the complete, parseable NEW content.
+    jq . "${target}" > /dev/null
+    local cycles
+    cycles="$(jq -r '.cycles' "${target}")"
+    [ "${cycles}" = "5" ]
 
-    # Now commit
-    mv -f "${tmp}" "${target}"
-
-    # After mv, target has new content
-    local post_mv_cycles
-    post_mv_cycles="$(jq -r '.cycles' "${target}")"
-    [ "${post_mv_cycles}" = "5" ]
+    # No staging temp remains.
+    local tmp_count
+    tmp_count="$(find "${dir}" -maxdepth 1 -name '.tmp.*' | wc -l | tr -d ' ')"
+    [ "${tmp_count}" -eq 0 ]
 }
 
-@test "(f) state_write_atomic produces complete, parseable target" {
-    local dir="${BATS_TMPDIR}/f_complete"
-    mkdir -p "${dir}"
+@test "(f) failed validation: target untouched and no temp lingers" {
+    # Fresh unique dir so a stale temp from a prior run cannot poison the
+    # no-leak assertion (BATS_TMPDIR persists across runs).
+    local dir
+    dir="$(mktemp -d "${BATS_TMPDIR}/f_failure.XXXXXX")"
     local target="${dir}/_orchestrator.json"
-    run bash -c "source '${LIB}'; state_write_atomic '${target}' '${VALID_ORCHESTRATOR}'"
-    [ "$status" -eq 0 ]
-    # The target is always a complete JSON file — never partial
-    jq . "${target}" > /dev/null
+    # Pre-existing valid content.
+    printf '%s' "${VALID_ORCHESTRATOR}" > "${target}"
+    local before
+    before="$(cat "${target}")"
+
+    # Drive the library with content that fails validation.
+    run bash -c "source '${LIB}'; state_write_atomic '${target}' '${INVALID_CONTENT}'"
+    [ "$status" -ne 0 ]
+
+    # Target is byte-for-byte unchanged (no torn/partial write).
+    local after
+    after="$(cat "${target}")"
+    [ "${before}" = "${after}" ]
+
+    # No staging temp remains.
+    local tmp_count
+    tmp_count="$(find "${dir}" -maxdepth 1 -name '.tmp.*' | wc -l | tr -d ' ')"
+    [ "${tmp_count}" -eq 0 ]
 }
 
 # ---------------------------------------------------------------------------
@@ -428,4 +445,31 @@ WORKER_V2='{
     run bash -c "source '${LIB}'; state_migrate_if_needed '${target}'"
     [ "$status" -ne 0 ]
     [[ "${output}" =~ "version" ]] || [[ "${output}" =~ "schema_version" ]]
+}
+
+# ---------------------------------------------------------------------------
+# (g3) state_migrate_if_needed: malformed JSON is reported DISTINCTLY from a
+#      well-formed file missing schema_version (I-3). jq fails to parse, so
+#      the error must mention malformed/unreadable, not "missing schema_version".
+# ---------------------------------------------------------------------------
+
+@test "(g3) state_migrate_if_needed returns non-zero for malformed JSON" {
+    local dir="${BATS_TMPDIR}/g3_malformed"
+    mkdir -p "${dir}"
+    local target="${dir}/state.json"
+    printf '{ not valid json !!!' > "${target}"
+    run bash -c "source '${LIB}'; state_migrate_if_needed '${target}'"
+    [ "$status" -ne 0 ]
+}
+
+@test "(g3) malformed JSON message is distinct from missing-version message" {
+    local dir="${BATS_TMPDIR}/g3_distinct"
+    mkdir -p "${dir}"
+    local target="${dir}/state.json"
+    printf '{ not valid json !!!' > "${target}"
+    run bash -c "source '${LIB}'; state_migrate_if_needed '${target}'"
+    [ "$status" -ne 0 ]
+    # Must signal malformed/unreadable JSON, NOT the missing-version message.
+    [[ "${output}" =~ [Mm]alformed ]] || [[ "${output}" =~ [Uu]nreadable ]]
+    [[ ! "${output}" =~ "missing schema_version" ]]
 }

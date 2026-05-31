@@ -7,10 +7,11 @@
 # directive_log[] in _orchestrator.json (orch-owned state).
 #
 # The directive is published to inbox:{target-worker} as a "directive" wire
-# message carrying the optional expected_action field. The worker-side handler
-# (directive-ack-handler.sh) is reflexively invoked and overwrites the worker's
-# current_task when expected_action is non-empty — per ownership rules, THIS
-# SCRIPT never writes the worker's state file.
+# message carrying the optional expected_action field. The worker-side reflexive
+# handlers (directive-ack-handler.sh / directive-response-handler.sh) are fired by
+# the TARGET worker's listener on receipt — NOT inline by this sender — and they
+# overwrite the worker's current_task when expected_action is non-empty. Per
+# ownership rules, THIS SCRIPT never writes the worker's state file.
 #
 # Usage:
 #   xfleet directive <target> --message <text> [--expected_action <X>] [--scope <S>] [--concern_id <C>]
@@ -26,8 +27,9 @@
 #   --concern_id <C>          Concern id this directive addresses (default: null / not concern-scoped).
 #
 # Exit codes:
-#   0 — directive dispatched; directive_log[] + human_engaged updated in orch state;
-#       directive-ack + directive-response emitted reflexively (worker-side)
+#   0 — directive dispatched; directive_log[] + human_engaged updated in orch
+#       state; directive published to inbox:{target} (worker-side reflexive
+#       handlers fire later, on the worker's listener)
 #   1 — validation error, role rejection, or Redis/state failure
 
 _DIRECTIVE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -194,19 +196,14 @@ state_update_field "${ORCH_STATE_PATH}" \
 xfleet_redis XADD "inbox:${TARGET}" MAXLEN "~" 200 "*" data "${DIRECTIVE_MSG}" >/dev/null
 
 # ---------------------------------------------------------------------------
-# Reflexive: invoke directive-ack-handler.sh (worker-side reflexive handler).
-# The handler emits directive-ack to inbox:orchestrator and, when expected_action
-# is non-empty, overwrites the worker's current_task (worker-owned state).
+# The sender (orchestrator) is now DONE. The reflexive handlers
+# (directive-ack-handler.sh / directive-response-handler.sh) are NOT invoked
+# here: they are worker-side handlers fired by the TARGET worker's listener when
+# the directive arrives in inbox:{target} (they write the worker's own
+# current_task and emit directive-ack/directive-response). Invoking them inline
+# from the orch session would violate Writer Ownership (the orchestrator must
+# never write a worker's state file) and would mis-resolve XFLEET_WORKER_NAME.
+# Listener wiring lands in the later listener task.
 # ---------------------------------------------------------------------------
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${_DIRECTIVE_DIR}/../../.." && pwd)}"
-_DACK_HANDLER="${_PLUGIN_ROOT}/tools/xfleet/handlers/directive-ack-handler.sh"
-
-if [[ ! -x "${_DACK_HANDLER}" ]]; then
-    printf 'Error: directive-ack-handler.sh not found or not executable at %s\n' "${_DACK_HANDLER}" >&2
-    exit 1
-fi
-
-"${_DACK_HANDLER}" "${TARGET}" "${MSG_ID}" "${EXPECTED_ACTION}" "${SCOPE}" "${CONCERN_ID_ARG}"
-
-printf 'directive: sent to %s (directive_id: %s, scope: %s, expected_action: "%s"); human_engaged=true; directive-ack + directive-response emitted\n' \
+printf 'directive: sent to %s (directive_id: %s, scope: %s, expected_action: "%s"); human_engaged=true\n' \
     "${TARGET}" "${MSG_ID}" "${SCOPE}" "${EXPECTED_ACTION}"

@@ -21,8 +21,11 @@ that schema level.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
+
+from jsonschema import Draft202012Validator
 
 
 # ---------------------------------------------------------------------------
@@ -50,10 +53,18 @@ def levenshtein(a, b):
 
 
 def closest_key(unknown, candidates):
-    """Return the candidate with the smallest Levenshtein distance, or None."""
+    """Return the nearest candidate by Levenshtein distance, or None.
+
+    Suggests only when the best distance is within a sensible bound; a key far
+    from every candidate (e.g. garbage) yields no suggestion.
+    """
     if not candidates:
         return None
-    return min(candidates, key=lambda c: levenshtein(unknown, c))
+    best = min(candidates, key=lambda c: levenshtein(unknown, c))
+    threshold = max(2, len(unknown) // 2)
+    if levenshtein(unknown, best) > threshold:
+        return None
+    return best
 
 
 # ---------------------------------------------------------------------------
@@ -91,12 +102,6 @@ def build_subschema(full_schema, def_name):
     }
 
 
-def known_top_level_keys(full_schema, def_name):
-    """Return the set of declared top-level property names for def_name."""
-    obj = full_schema["$defs"].get(def_name, {})
-    return set(obj.get("properties", {}).keys())
-
-
 def format_error(err, full_schema, def_name):
     """Turn a ValidationError into a human-readable string with suggestions."""
     # jsonschema encodes the path to the offending instance in err.absolute_path
@@ -110,7 +115,6 @@ def format_error(err, full_schema, def_name):
         # Extract the unknown key name from the message.
         msg = err.message
         # Isolate the key name between the first pair of quotes.
-        import re
         match = re.search(r"'([^']+)'", msg)
         unknown = match.group(1) if match else "?"
 
@@ -169,16 +173,14 @@ def validate(state_path, schema_path, def_name):
     if ver_err:
         return 3, [ver_err]
 
-    # 3. JSON Schema validation.
+    # 3. JSON Schema validation. A malformed schema (dangling $ref, bad shape)
+    #    is reported cleanly as exit 2 rather than a raw traceback (I-4).
     try:
-        from jsonschema import Draft202012Validator
-        from jsonschema.exceptions import ValidationError
-    except ImportError as exc:
-        return 2, [f"jsonschema not importable: {exc}"]
-
-    subschema = build_subschema(full_schema, def_name)
-    validator = Draft202012Validator(subschema)
-    errors = sorted(validator.iter_errors(state), key=lambda e: list(e.absolute_path))
+        subschema = build_subschema(full_schema, def_name)
+        validator = Draft202012Validator(subschema)
+        errors = sorted(validator.iter_errors(state), key=lambda e: list(e.absolute_path))
+    except Exception as exc:  # noqa: BLE001
+        return 2, [f"Schema error: {exc}"]
 
     if not errors:
         return 0, []

@@ -23,7 +23,9 @@
 #   (f) schema_version "99" (unknown future version)      → exit 3, version-error message
 #   (g) valid worker state file                           → exit 0, no output
 #   (h) unknown top-level key in worker                   → exit 1, unknown key in output
-#   (i) explicit type override flag (--type orchestrator) → routes correctly
+#   (i) basename-based type inference (_orchestrator.json) → routes correctly
+#   (j) unknown key far from every known key                → exit 1, no suggestion
+#   (M-3) bad key at the third level of phase_emissions     → exit 1, path components
 
 bats_require_minimum_version 1.5.0
 
@@ -127,7 +129,8 @@ VALID_WORKER='{
     state="$(write_tmp "_orchestrator.json" "${bad}")"
     run bash "${SCRIPT}" "${state}" "${SCHEMA}" orchestrator
     [ "$status" -eq 1 ]
-    [[ "${output}" =~ "did you mean" ]] || [[ "${output}" =~ "cycles" ]]
+    [[ "${output}" =~ "did you mean" ]]
+    [[ "${output}" =~ "cycles" ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -164,6 +167,7 @@ VALID_WORKER='{
     state="$(write_tmp "_orchestrator.json" "${bad}")"
     run bash "${SCRIPT}" "${state}" "${SCHEMA}" orchestrator
     [[ "${output}" =~ "bogus_nested" ]]
+    [[ "${output}" =~ "human_engaged" ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -312,4 +316,49 @@ VALID_WORKER='{
     printf '%s' "${bad}" > "${state}"
     run bash "${SCRIPT}" "${state}" "${SCHEMA}"
     [ "$status" -eq 1 ]
+}
+
+# ---------------------------------------------------------------------------
+# (j) Unknown key far from every known key → exit 1, NO did-you-mean suggestion
+# ---------------------------------------------------------------------------
+
+@test "(j) unknown key far from all known keys: exit 1, names key, suppresses suggestion" {
+    bad='{
+      "schema_version": "1",
+      "zzqqxx_nonsense": 1
+    }'
+    state="$(write_tmp "_orchestrator.json" "${bad}")"
+    run bash "${SCRIPT}" "${state}" "${SCHEMA}" orchestrator
+    [ "$status" -eq 1 ]
+    [[ "${output}" =~ "zzqqxx_nonsense" ]]
+    [[ ! "${output}" =~ "did you mean" ]]
+}
+
+# ---------------------------------------------------------------------------
+# (M-3) Bad key at the THIRD level of phase_emissions (map-in-map-in-map) →
+#       exit 1, reported path includes the phase/signal components.
+# ---------------------------------------------------------------------------
+
+@test "(M-3) unknown key at third level of phase_emissions: exit 1, path includes phase/signal" {
+    bad='{
+      "schema_version": "1",
+      "phase_emissions": {
+        "plan": {
+          "phase-complete": {
+            "approved_by_human": true,
+            "sent_at": "2026-05-31T10:00:00Z",
+            "sent_to": ["server"],
+            "emission_id": "emit-1",
+            "bogus_deep_key": "nope"
+          }
+        }
+      }
+    }'
+    state="$(write_tmp "_orchestrator.json" "${bad}")"
+    run bash "${SCRIPT}" "${state}" "${SCHEMA}" orchestrator
+    [ "$status" -eq 1 ]
+    [[ "${output}" =~ "bogus_deep_key" ]]
+    [[ "${output}" =~ "phase_emissions" ]]
+    [[ "${output}" =~ "plan" ]]
+    [[ "${output}" =~ "phase-complete" ]]
 }

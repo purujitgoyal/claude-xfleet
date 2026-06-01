@@ -62,3 +62,8 @@ The actual cross-repo synthesis is **orch-side** (cluster 4l): on receiving
 **finalize-spec in qa-spec mode** locally → produces the cross-repo `spec.md`
 seed (the PRD that drives repo-spec). The worker does not edit `spec.md`
 directly; it contributes drafted sections + captured decisions.
+
+Optionally, before repo-spec begins, run `/prd-review` on the finalized
+`spec.md` for a cross-repo stress-test (its xfleet sidecar adds the
+Distributability dimension); route any JUDGMENT findings through the human
+gate. This is operator-invoked — not an automated phase step.

@@ -6,6 +6,17 @@ Manual smoke test for the two Task-14 extensions to the **personal global**
 `~/.claude/agents/prd-boundaries-reviewer.md`), so they cannot be covered by
 the plugin's BATS suite. A human runs the steps below against a sample wave.
 
+> **General vs xfleet.** `prd-review` is now a general skill (risk +
+> boundaries + adversarial) with an xfleet sidecar
+> (`~/.claude/skills/prd-review/xfleet.md`) that adds the Distributability
+> dimension and a fixed `~/merlin-ai/docs/superpowers/reviews/` findings
+> location. Both features below — the prior-decisions block and asymmetry
+> detection — are **general** behavior; this test exercises a plain
+> `/prd-review` run (no xfleet session, so no distributability dim).
+> `<REVIEWS_DIR>` below = the skill's resolved findings dir: repo-local
+> `docs/superpowers/reviews/` in a plain run, or
+> `~/merlin-ai/docs/superpowers/reviews/` inside an xfleet session.
+
 ## What is under test
 
 1. **Prior-decisions context block (cluster 4l, items 4 + 5 / F-28).**
@@ -61,7 +72,7 @@ Create a throwaway PRD (any path; e.g. `/tmp/sample-wave.md`) containing:
 
 To exercise source 2 of the prior-decisions block (the glob path corrected in
 this task), drop a prior findings file at
-`~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave.md`
+`<REVIEWS_DIR>/prd-review-sample-wave.md`
 (slug = PRD filename minus date prefix and `.md`) — this is the same
 `reviews/` directory the skill writes its own findings to. The glob
 `prd-review-sample-wave*.md` also picks up re-review suffixes
@@ -77,13 +88,14 @@ the path corrected in this task and must be verified working.
 
 2. **Verify the prior-decisions block is assembled (Step 2.5).** In the
    skill's trace, confirm it read the PRD's `## Decisions Log` and globbed
-   `~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave*.md`.
+   `<REVIEWS_DIR>/prd-review-sample-wave*.md`.
    Confirm `D-1` (and any prior `F-N` from the optional findings file)
    appears in the assembled `prior_decisions` text.
 
 3. **Verify the block reaches the dim agents.** Inspect the dispatch prompts
-   the skill sent to each dim agent (risk, boundaries, distributability, and
-   adversarial if intensity ≥ high). Each prompt must contain the
+   the skill sent to each dim agent (risk, boundaries, and adversarial if
+   intensity ≥ high; xfleet sessions also dispatch distributability). Each
+   prompt must contain the
    `prior_decisions` block **and** the instruction to skip/reference resolved
    decisions instead of re-raising them. Expected: the block text is present
    verbatim in all dim-agent prompts, not just one.
@@ -103,16 +115,16 @@ the path corrected in this task and must be verified working.
 
 6. **Verify graceful degradation.** Run `/prd-review` against a second PRD
    that has **no** `## Decisions Log` and whose slug has **no** matching
-   `~/merlin-ai/docs/superpowers/reviews/prd-review-{slug}*.md` files (a
+   `<REVIEWS_DIR>/prd-review-{slug}*.md` files (a
    first review of a fresh slug). Confirm the review completes normally with
    an empty/omitted `prior_decisions` block and no error about a missing
    section or empty glob.
 
 7. **Verify source 2 (prior findings glob) — REQUIRED.** With the prior
-   findings fixture `~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave.md`
+   findings fixture `<REVIEWS_DIR>/prd-review-sample-wave.md`
    in place (from the fixture section), re-run `/prd-review /tmp/sample-wave.md`.
    In the skill's trace, confirm the glob
-   `~/merlin-ai/docs/superpowers/reviews/prd-review-sample-wave*.md` matched
+   `<REVIEWS_DIR>/prd-review-sample-wave*.md` matched
    that file and that its recognizable prior finding (e.g. `F-9`) appears in
    the assembled `prior_decisions` block — and therefore in the dim-agent
    dispatch prompts (Step 3). This is the path corrected in this task; it must

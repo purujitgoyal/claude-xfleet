@@ -279,6 +279,44 @@
               }
             }
           }
+        },
+        "integration_readiness": {
+          "description": "Per-IP per-repo readiness flags; outer key IP-{N}, inner key repo name. Set by integration-ready-handler; reset on IP amendment/reopen.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "boolean" }
+          }
+        },
+        "ip_status": {
+          "description": "Per-IP lifecycle state. status set by orchestrator IP-verification flow; verified_at on T4 close; version bumped on amendment.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "verified_at", "version"],
+            "properties": {
+              "status": { "description": "IP lifecycle state.", "type": "string", "enum": ["proposed", "locked-pending", "locked", "verified", "re-opened"] },
+              "verified_at": { "description": "ISO timestamp when IP reached verified, else null.", "type": ["string", "null"] },
+              "version": { "description": "Bumped on amendment-via-resolution-loop.", "type": "integer" }
+            }
+          }
+        },
+        "drift_log": {
+          "description": "Append-only log of drift detections per IP close; classification per API Evolve taxonomy.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ip", "contract", "repo", "classification", "resolved_at"],
+            "properties": {
+              "ip": { "description": "IP id, e.g. IP-1.", "type": "string" },
+              "contract": { "description": "Contract id, e.g. C-1.", "type": "string" },
+              "repo": { "description": "Contributing repo name.", "type": "string" },
+              "classification": { "description": "API Evolve taxonomy class.", "type": "string", "enum": ["additive", "non-breaking", "breaking", "removal"] },
+              "resolved_at": { "description": "ISO timestamp when the drift was resolved, else null.", "type": ["string", "null"] }
+            }
+          }
         }
       }
     },
@@ -377,6 +415,18 @@
           "type": ["string", "null"],
           "description": "ISO-8601 timestamp of the last context check, or null. Throttles below-warn context checks (cluster 4j).",
           "default": null
+        },
+        "current_ip": {
+          "description": "IP this worker is currently working toward; null when between IPs.",
+          "type": ["string", "null"]
+        },
+        "ip_self_check": {
+          "description": "Per-IP per-contract self-check status from verification-before-completion at epic close. Written by xfleet drift-check.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "string", "enum": ["drift-clean", "drift-detected", "not-yet-checked"] }
+          }
         }
       }
     }

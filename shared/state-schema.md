@@ -60,20 +60,25 @@ description is a defect.
   phase entry** (the warn/check debounce fields per cluster 4j). `last_warn_emitted_at`
   is additionally cleared when `context_pct` drops below the warn threshold.
 - The append-only logs in `_orchestrator.json` (`emission_log`, `completion_log`,
-  `directive_log`, `task_log`, `escalation_log`) grow monotonically across the
-  session; they are audit trails, not live state.
+  `directive_log`, `task_log`, `escalation_log`, `drift_log`) grow monotonically
+  across the session; they are audit trails, not live state. `drift_log` is the
+  cluster 5 append-only audit log for contract drift detections per IP close,
+  alongside `escalation_log` et al.
+- `integration_readiness` and `ip_status` are cluster 5 live-state maps in
+  `_orchestrator.json`. `integration_readiness` holds per-IP per-repo readiness
+  flags (set by integration-ready-handler; reset on IP amendment/reopen).
+  `ip_status` tracks the per-IP lifecycle state (proposed → locked-pending →
+  locked → verified → re-opened) with a `version` counter bumped on amendment.
+- `current_ip` is the worker state field recording which IP the worker is
+  currently working toward; null when between IPs.
+- `ip_self_check` is the per-IP per-contract self-check status written by
+  xfleet drift-check at epic close (verification-before-completion).
 
 ### Derived — NOT stored
 
 - **`prepare_compact_at`** is **not** a state field and is intentionally absent
   from the JSON Schema. It is **computed at read time** from the filesystem mtime
   of the most recent `handoff-{phase}.md`. Do not add it to either state file.
-
-### Excluded — separate plan
-
-The following fields belong to cluster 5 (a separate plan) and are intentionally
-**not** part of this schema: `integration_readiness`, `ip_status`, `drift_log`,
-`current_ip`, `ip_self_check`. Do not add them here.
 
 ---
 
@@ -175,6 +180,20 @@ edit by hand — run `tools/xfleet/gen-state-schema-doc.sh` to regenerate.
 | `escalation_log[].received_at` | string | yes | ISO-8601 timestamp the escalation was received. |
 | `escalation_log[].surfaced_at` | string | yes | ISO-8601 timestamp the escalation was surfaced to the human. |
 | `escalation_log[].resolved_at` | string \| null | yes | ISO-8601 timestamp the escalation was resolved, or null if still open. |
+| `integration_readiness` | object | no | Per-IP per-repo readiness flags; outer key IP-{N}, inner key repo name. Set by integration-ready-handler; reset on IP amendment/reopen. |
+| `integration_readiness.{key}` | object | no |  |
+| `integration_readiness.{key}.{key}` | boolean | no |  |
+| `ip_status` | object | no | Per-IP lifecycle state. status set by orchestrator IP-verification flow; verified_at on T4 close; version bumped on amendment. |
+| `ip_status.{key}` | object | no |  |
+| `ip_status.{key}.status` | enum: proposed, locked-pending, locked, verified, re-opened | yes | IP lifecycle state. |
+| `ip_status.{key}.verified_at` | string \| null | yes | ISO timestamp when IP reached verified, else null. |
+| `ip_status.{key}.version` | integer | yes | Bumped on amendment-via-resolution-loop. |
+| `drift_log` | array<object> | no | Append-only log of drift detections per IP close; classification per API Evolve taxonomy. |
+| `drift_log[].ip` | string | yes | IP id, e.g. IP-1. |
+| `drift_log[].contract` | string | yes | Contract id, e.g. C-1. |
+| `drift_log[].repo` | string | yes | Contributing repo name. |
+| `drift_log[].classification` | enum: additive, non-breaking, breaking, removal | yes | API Evolve taxonomy class. |
+| `drift_log[].resolved_at` | string \| null | yes | ISO timestamp when the drift was resolved, else null. |
 
 ### `{worker}.json`
 
@@ -198,6 +217,10 @@ edit by hand — run `tools/xfleet/gen-state-schema-doc.sh` to regenerate.
 | `confirmed_closed_concerns` | array<string> | no | Concern ids this worker has confirmed closed via the resolution closure handshake. |
 | `last_warn_emitted_at` | string \| null | no | ISO-8601 timestamp the last context warn was emitted, or null. Debounces warn emissions (cluster 4j); resets on phase entry; cleared when context_pct drops below the warn threshold. |
 | `last_check_at` | string \| null | no | ISO-8601 timestamp of the last context check, or null. Throttles below-warn context checks (cluster 4j). |
+| `current_ip` | string \| null | no | IP this worker is currently working toward; null when between IPs. |
+| `ip_self_check` | object | no | Per-IP per-contract self-check status from verification-before-completion at epic close. Written by xfleet drift-check. |
+| `ip_self_check.{key}` | object | no |  |
+| `ip_self_check.{key}.{key}` | enum: drift-clean, drift-detected, not-yet-checked | no |  |
 <!-- END GENERATED -->
 
 ---

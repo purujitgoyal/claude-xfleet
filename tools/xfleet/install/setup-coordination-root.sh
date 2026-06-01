@@ -148,7 +148,7 @@ printf '    Redis OK at %s\n' "$REDIS_URL"
 # Step F — Resolve + persist Python with jsonschema
 # ---------------------------------------------------------------------------
 
-_print_step "F) Resolving Python interpreter with jsonschema..."
+_print_step "F) Resolving Python interpreter with jsonschema, pydantic, and deepdiff..."
 
 VENV_PYTHON="${HOME}/.config/xfleet/venv/bin/python"
 
@@ -160,32 +160,32 @@ RESOLVED_PYTHON=""
 
 # Candidate 1: $XFLEET_PYTHON env var (if set)
 if [ -n "${XFLEET_PYTHON:-}" ]; then
-    if "$XFLEET_PYTHON" -c "import jsonschema" > /dev/null 2>&1; then
+    if "$XFLEET_PYTHON" -c "import jsonschema, pydantic, deepdiff" > /dev/null 2>&1; then
         RESOLVED_PYTHON="$XFLEET_PYTHON"
         printf '    Using $XFLEET_PYTHON: %s\n' "$RESOLVED_PYTHON"
     else
-        printf '    $XFLEET_PYTHON is set (%s) but jsonschema import failed; trying next candidate.\n' "$XFLEET_PYTHON"
+        printf '    $XFLEET_PYTHON is set (%s) but jsonschema/pydantic/deepdiff import failed; trying next candidate.\n' "$XFLEET_PYTHON"
     fi
 fi
 
 # Candidate 2: existing python_bin in config.json
 if [ -z "$RESOLVED_PYTHON" ] && [ -n "$existing_python_bin" ]; then
-    if "$existing_python_bin" -c "import jsonschema" > /dev/null 2>&1; then
+    if "$existing_python_bin" -c "import jsonschema, pydantic, deepdiff" > /dev/null 2>&1; then
         RESOLVED_PYTHON="$existing_python_bin"
         printf '    Using existing python_bin from config: %s\n' "$RESOLVED_PYTHON"
     else
-        printf '    Existing python_bin in config (%s) failed jsonschema import; trying next candidate.\n' "$existing_python_bin"
+        printf '    Existing python_bin in config (%s) failed jsonschema/pydantic/deepdiff import; trying next candidate.\n' "$existing_python_bin"
     fi
 fi
 
 # Candidate 3: system python3
 if [ -z "$RESOLVED_PYTHON" ]; then
     if command -v python3 > /dev/null 2>&1; then
-        if python3 -c "import jsonschema" > /dev/null 2>&1; then
+        if python3 -c "import jsonschema, pydantic, deepdiff" > /dev/null 2>&1; then
             RESOLVED_PYTHON="$(command -v python3)"
             printf '    Using system python3: %s\n' "$RESOLVED_PYTHON"
         else
-            printf '    System python3 found but jsonschema not available; trying next candidate.\n'
+            printf '    System python3 found but jsonschema/pydantic/deepdiff not all available; trying next candidate.\n'
         fi
     fi
 fi
@@ -193,7 +193,7 @@ fi
 # Candidate 4: venv python
 if [ -z "$RESOLVED_PYTHON" ]; then
     if [ -x "$VENV_PYTHON" ]; then
-        if "$VENV_PYTHON" -c "import jsonschema" > /dev/null 2>&1; then
+        if "$VENV_PYTHON" -c "import jsonschema, pydantic, deepdiff" > /dev/null 2>&1; then
             RESOLVED_PYTHON="$VENV_PYTHON"
             printf '    Using venv python: %s\n' "$RESOLVED_PYTHON"
         fi
@@ -202,23 +202,23 @@ fi
 
 # Bootstrap venv if no candidate worked
 if [ -z "$RESOLVED_PYTHON" ]; then
-    printf '    No working Python+jsonschema found. Attempting bootstrap...\n'
+    printf '    No working Python+jsonschema+pydantic+deepdiff found. Attempting bootstrap...\n'
 
     if command -v uv > /dev/null 2>&1; then
         printf '    Found uv; creating venv at ~/.config/xfleet/venv ...\n'
         uv venv "${HOME}/.config/xfleet/venv" --python 3.13
-        uv pip install --python "$VENV_PYTHON" jsonschema
-        if "$VENV_PYTHON" -c "import jsonschema" > /dev/null 2>&1; then
+        uv pip install --python "$VENV_PYTHON" jsonschema pydantic deepdiff
+        if "$VENV_PYTHON" -c "import jsonschema, pydantic, deepdiff" > /dev/null 2>&1; then
             RESOLVED_PYTHON="$VENV_PYTHON"
             printf '    Bootstrap succeeded: %s\n' "$RESOLVED_PYTHON"
         else
-            _die "Bootstrap with uv completed but jsonschema import still fails at ${VENV_PYTHON}. Check uv output above."
+            _die "Bootstrap with uv completed but jsonschema/pydantic/deepdiff import still fails at ${VENV_PYTHON}. Check uv output above."
         fi
     else
-        _die "No working Python interpreter with jsonschema found, and 'uv' is not on PATH.
+        _die "No working Python interpreter with jsonschema+pydantic+deepdiff found, and 'uv' is not on PATH.
   Options:
     1. Install uv and re-run: brew install uv (then re-run this script)
-    2. Install jsonschema into any Python 3 and set: export XFLEET_PYTHON=/path/to/that/python
+    2. Install jsonschema pydantic deepdiff into any Python 3 and set: export XFLEET_PYTHON=/path/to/that/python
        Then re-run this script."
     fi
 fi

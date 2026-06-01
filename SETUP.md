@@ -19,7 +19,7 @@ The script is safe to re-run: it will not duplicate directories, gitignore entri
 3. Adds `.xfleet/` to the parent directory's `.gitignore` if not already present.
 4. Persists `coordination_root` to `~/.config/xfleet/config.json` (merged, atomic write).
 5. Verifies Redis is reachable (aborts with an actionable message if not).
-6. Resolves a working Python interpreter with `jsonschema` and persists it as `python_bin` in `~/.config/xfleet/config.json`.
+6. Resolves a working Python interpreter with `jsonschema`, `pydantic`, and `deepdiff`; persists it as `python_bin` in `~/.config/xfleet/config.json`.
 7. Grants 3 path-scoped Claude Code permissions in `~/.claude/settings.local.json`.
 
 ## Permissions
@@ -46,19 +46,21 @@ Redis must be running and reachable before setup and at plugin runtime.
 - Install: `brew install redis && redis-server`
 - Verify manually: `redis-cli -u "${XFLEET_REDIS_URL:-redis://127.0.0.1:6379}" ping` → should return `PONG`.
 
-### Python + jsonschema
+### Python + jsonschema + pydantic + deepdiff
 
-Python 3 with `jsonschema>=4` is required. The setup script probes candidates in this order and uses the first that passes `import jsonschema`:
+Python 3 with `jsonschema>=4`, `pydantic`, and `deepdiff` is required. The setup script probes candidates in this order and uses the first that passes `import jsonschema, pydantic, deepdiff`:
 
 1. `$XFLEET_PYTHON` (if set in the environment)
 2. Existing `python_bin` value in `~/.config/xfleet/config.json` (if present and working)
 3. System `python3`
 4. `~/.config/xfleet/venv/bin/python`
 
-If no candidate works and `uv` is on PATH, setup bootstraps a virtual environment at `~/.config/xfleet/venv/` and installs `jsonschema` there. If `uv` is not available, setup aborts with instructions:
+If no candidate works and `uv` is on PATH, setup bootstraps a virtual environment at `~/.config/xfleet/venv/` and installs `jsonschema pydantic deepdiff` there. If `uv` is not available, setup aborts with instructions:
 
 - Option A: `brew install uv` then re-run.
-- Option B: `pip install jsonschema` into any Python 3, then `export XFLEET_PYTHON=/path/to/that/python` and re-run.
+- Option B: `pip install jsonschema pydantic deepdiff` into any Python 3, then `export XFLEET_PYTHON=/path/to/that/python` and re-run.
+
+`pydantic` and `deepdiff` are used by `xfleet drift-check`: pydantic executes the canonical Pydantic model block extracted from `contracts.md` (calling `model_json_schema()`), and deepdiff performs the JSON-Schema structural diff.
 
 The resolved path is written to `python_bin` in `~/.config/xfleet/config.json`. The SessionStart hook reads this value and exports it as `$XFLEET_PYTHON` so all subcommands pick it up automatically.
 
@@ -86,8 +88,8 @@ After running the script, confirm everything is wired up:
 # Redis still reachable
 redis-cli -u "${XFLEET_REDIS_URL:-redis://127.0.0.1:6379}" ping
 
-# Python + jsonschema
-"$(jq -r .python_bin ~/.config/xfleet/config.json)" -c "import jsonschema; print(jsonschema.__version__)"
+# Python + jsonschema + pydantic + deepdiff
+"$(jq -r .python_bin ~/.config/xfleet/config.json)" -c "import jsonschema, pydantic, deepdiff; print(jsonschema.__version__)"
 
 # Coordination root exists
 ls "$(jq -r .coordination_root ~/.config/xfleet/config.json)"

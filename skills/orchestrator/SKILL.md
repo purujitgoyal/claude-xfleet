@@ -234,3 +234,60 @@ after repo-spec, …); mid-phase edits land in the current `spec.md` until the n
 phase-exit snapshot. This is intentionally asymmetric with per-repo `section.md`
 (continuously evolving): cross-repo synthesis is heavyweight and happens at
 milestones; per-repo evolution is incremental within phases.
+
+## Integration Point Verification
+
+Orch watches `integration_readiness` in `_orchestrator.json`. For each IP, the
+set of contributing repos comes from the `## Integration Points` table in
+`spec.md` (orch reads **its own** `spec.md` — NEVER peer-repo source, per
+Authority Hierarchy). The "Repos" column for each IP in `spec.md` MUST use
+the exact `$XFLEET_WORKER_NAME` token each worker reports — the all-ready check
+compares `integration_readiness[IP]` keys against these tokens with **no**
+normalization or aliasing. **IP authoring rule:** when orch authors or refines an
+IP, copy worker canonical names verbatim into the "Repos" column; a mismatched
+token means the IP silently never reaches all-ready.
+
+**All-ready trigger:** when `integration_readiness[IP]` is `true` for ALL
+contributing repos of that IP, orch fires the verification stack:
+
+- **T1 re-run** — an independent `xfleet drift-check` per contract per
+  contributing repo; results feed T3.
+- **T2** — send a `task` (existing wire taxonomy) to each contributing worker to
+  run the IP's integration tests (commands sourced from the `contracts.md`
+  verification block); aggregate pass/fail from `task-response`.
+- **T3** — dispatch the `/xfleet:x-vergence-check` skill with the per-repo code
+  slices + T1 drift reports + T2 results + locked contract intent from
+  `contracts.md`. x-vergence-check is a parameterized Agent invocation in the
+  orch session and emits a 5-flag findings list (F1–F5).
+- **T4** — if the IP's T4 Gate is `true` AND T1+T2+T3 are all clean → escalate
+  to the human via the cluster 4g Slack-pair escalation machinery (the
+  `escalation` wire message, paired with a direct Slack ping, for the audit
+  trail); if `false` → auto-close.
+
+**On all-clean:** flip `ip_status[IP].status` from `locked` → `verified`,
+set `verified_at`; append any drift detections (even if non-breaking) to
+`drift_log` under the API Evolve taxonomy.
+
+**On any layer failure:** IP stays `locked`; route via the Resolution Loop below;
+verification re-runs in full after the fix is confirmed.
+
+### Resolution loop routing
+
+**Light path** — an existing contract changes (refine error contract, rename
+field, fix mismatch): orch amends `contracts.md` in place + records a
+classification entry (API Evolve taxonomy) + bumps `Last amended`; propagation =
+a `directive` to contributing workers to re-derive their language-specific
+representation; the drift check at the next IP close confirms. No spec.md edit,
+no snapshot.
+
+**Heavy path** — a NEW contract emerges mid-implementation, OR a new IP is
+needed, OR an IP's scope changes (an anti-pattern signaling spec/plan
+incompleteness): orch amends `spec.md` + adds a Decisions Log entry explaining
+WHY the gap was missed + authors the new contract block in `contracts.md` + takes
+`spec-v{N+1}.md` / `contracts-v{N+1}.md` snapshots; propagation = a `task` to
+each contributing worker to invoke writing-plans/plan-fold (re-fold their
+`plan.md`, update epic-to-IP anchoring).
+
+**Code-update invariant:** code-update authority is ALWAYS the worker; the
+orchestrator never writes repo code — it only writes cross-repo artifacts
+(`spec.md`, `contracts.md`, ADRs).

@@ -141,6 +141,18 @@ _dispatch_orchestrator() {
         phase-complete)
             _dispatch_append_completion_log
             ;;
+        integration-ready)
+            local worker repo ip
+            worker="$(printf '%s' "${msg}" | jq -r '.worker // empty')"
+            repo="$(printf '%s' "${msg}" | jq -r '.repo // empty')"
+            ip="$(printf '%s' "${msg}" | jq -r '.ip // empty')"
+            local handler="${_DISPATCH_HANDLERS}/integration-ready-handler.sh"
+            if [[ ! -x "${handler}" ]]; then
+                printf 'dispatch_message: handler not found or not executable: %s\n' "${handler}" >&2
+                return 1
+            fi
+            "${handler}" "${ip}" "${repo}"
+            ;;
         *)
             # Unknown type for orchestrator role — no-op.
             return 0

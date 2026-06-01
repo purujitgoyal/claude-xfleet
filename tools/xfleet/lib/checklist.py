@@ -150,11 +150,32 @@ def list_contract_ids(text):
     return ids
 
 
+def canonical_has_python_fence(section):
+    """True if a ```python fence sits under '### Canonical shape'.
+
+    Mirrors drift_check.py's extract_canonical_block scoping: only the text
+    between the Canonical shape heading and the next '### ' counts, so a fence
+    living under '### Intent' does not falsely satisfy the canonical check.
+    """
+    lines = section.splitlines()
+    in_canonical = False
+    for line in lines:
+        if re.match(r"^###\s+Canonical shape\b", line):
+            in_canonical = True
+            continue
+        if in_canonical:
+            if line.startswith("### "):
+                return False
+            if re.match(r"^```python\b", line.strip()):
+                return True
+    return False
+
+
 def check_contract_parts(contract_id, section):
     """Return list of ERROR findings for missing required subsections."""
     findings = []
     has_canonical = bool(re.search(r"^###\s+Canonical shape\b", section, re.MULTILINE))
-    has_python_fence = bool(re.search(r"^```python\b", section, re.MULTILINE))
+    has_python_fence = canonical_has_python_fence(section)
     has_intent = bool(re.search(r"^###\s+Intent\b", section, re.MULTILINE))
     has_verif = bool(re.search(r"^###\s+Verification at IP close\b", section, re.MULTILINE))
 
@@ -236,7 +257,9 @@ def validate_ip_rows(rows):
             findings.append(error("IP-MISSING-REPOS", f"IP {ip_id}: 'Repos' cell is empty"))
         if not row["contracts"].strip():
             findings.append(error("IP-MISSING-CONTRACTS", f"IP {ip_id}: 'Contracts in scope' cell is empty"))
-        t4 = row["t4_gate"].strip().lower()
+        # Must be canonical lowercase exactly — downstream orchestrator
+        # string-compares this, so True/TRUE/False must NOT pass.
+        t4 = row["t4_gate"].strip()
         if t4 not in ("true", "false"):
             findings.append(error(
                 "IP-BAD-T4GATE",

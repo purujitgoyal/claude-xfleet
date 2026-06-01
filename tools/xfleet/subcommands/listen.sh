@@ -146,7 +146,17 @@ done
 
 # Blocking read loop
 while true; do
-    RESULT="$(xfleet_redis XREADGROUP GROUP "${GROUP}" "${CONSUMER}" BLOCK "${CYCLE_MS}" COUNT 1 STREAMS "${STREAM}" '>' 2>/dev/null)" || true
+    rc=0
+    RESULT="$(xfleet_redis XREADGROUP GROUP "${GROUP}" "${CONSUMER}" BLOCK "${CYCLE_MS}" COUNT 1 STREAMS "${STREAM}" '>' 2>/dev/null)" || rc=$?
+    if [[ ${rc} -ne 0 ]]; then
+        # XREADGROUP errored — redis unreachable, or NOGROUP after the consumer
+        # group was destroyed (e.g. on test teardown). Without a backoff the
+        # BLOCK returns instantly and this loop busy-spins, spawning a redis-cli
+        # per iteration; that exhausts ephemeral ports and saturates CPU. Back
+        # off before retrying so a stray/leaked listener idles cheaply.
+        sleep 1
+        continue
+    fi
     if [[ -n "${RESULT}" ]]; then
         line_count="$(printf '%s' "${RESULT}" | wc -l | tr -d ' ')"
         if [[ "${line_count}" -ge 4 ]]; then

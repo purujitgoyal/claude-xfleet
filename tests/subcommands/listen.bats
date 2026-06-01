@@ -28,6 +28,21 @@ VALID_WORKER='{
   "context_pct": 10
 }'
 
+# Reliably kill a listener subtree (its bash loop + the forked redis-cli BLOCK
+# child). macOS has no setsid, so the listener is NOT a process-group leader and
+# the negative-PGID trick is unreliable; SIGKILL the bash PID directly (a KILL
+# cannot be trapped or deferred, so it lands even while the loop is blocked in a
+# redis-cli command substitution), then reap the now-orphaned redis-cli child by
+# its stream so it can't keep a connection open or respawn.
+_kill_listener_subtree() {
+    local raw_pid="$1" worker="$2"
+    if [[ -n "${raw_pid}" ]]; then
+        kill -- "-${raw_pid}" 2>/dev/null || true   # process-group kill when setsid present
+        kill -9 "${raw_pid}" 2>/dev/null || true    # always SIGKILL the loop PID
+    fi
+    pkill -9 -f "XREADGROUP.*inbox:${worker}" 2>/dev/null || true
+}
+
 setup() {
     WORKER_NAME="$(unique_name)"
     COORD_ROOT="$(mktemp -d)"
@@ -39,27 +54,18 @@ setup() {
 }
 
 teardown() {
-    # Read the listen_bash_id from the worker state file and kill the listener.
-    # listen.sh launches the listener as its own process-group leader (PID==PGID),
-    # so a negative-PGID signal kills the WHOLE subtree (listener bash + its
-    # forked redis-cli BLOCK) in one shot — preventing leaked Redis connections.
+    # Kill the listener subtree FIRST (bash loop + its redis-cli BLOCK child),
+    # then destroy the stream/group — so the loop never observes NOGROUP and
+    # retries against a torn-down group.
     local state_file="${COORD_ROOT}/state/${WORKER_NAME}.json"
     if [[ -f "${state_file}" ]]; then
         local bid raw_pid
         bid="$(jq -r '.listen_bash_id // empty' "${state_file}" 2>/dev/null)" || true
-        if [[ -n "${bid}" ]]; then
-            # bid is "bash-NNN"; extract the numeric PID.
-            raw_pid="$(printf '%s' "${bid}" | tr -dc '0-9')"
-            if [[ -n "${raw_pid}" ]]; then
-                # Process-group kill (PGID == PID under setsid); fall back to a
-                # plain PID kill when setsid was unavailable at launch.
-                kill -- "-${raw_pid}" 2>/dev/null || kill "${raw_pid}" 2>/dev/null || true
-            fi
-        fi
+        # bid is "bash-NNN"; extract the numeric PID.
+        raw_pid="$(printf '%s' "${bid}" | tr -dc '0-9')"
+        _kill_listener_subtree "${raw_pid}" "${WORKER_NAME}"
     fi
-    # Belt-and-suspenders: kill any stray XREADGROUP for this test's stream.
-    pkill -f "XREADGROUP.*inbox:${WORKER_NAME}" 2>/dev/null || true
-    # Clean up the Redis stream
+    # Clean up the Redis stream (listener is already dead by here).
     if redis_available; then
         redis-cli -u "${REDIS_URL}" DEL "inbox:${WORKER_NAME}" >/dev/null 2>&1 || true
         redis-cli -u "${REDIS_URL}" XGROUP DESTROY "inbox:${WORKER_NAME}" worker >/dev/null 2>&1 || true
@@ -134,7 +140,7 @@ teardown() {
     # Kill the first listener (and its subtree) before the second call.
     local raw_pid
     raw_pid="$(printf '%s' "${bid1}" | tr -dc '0-9')"
-    kill -- "-${raw_pid}" 2>/dev/null || kill "${raw_pid}" 2>/dev/null || true
+    _kill_listener_subtree "${raw_pid}" "${WORKER_NAME}"
     # Brief wait so the OS settles after the kill.
     sleep 0.2
     bash "${LISTEN_SH}" "${WORKER_NAME}"

@@ -36,14 +36,19 @@ def extract(module_name, model_name):
             f"Module '{module_name}' has no attribute '{model_name}'"
         ) from exc
 
+    # Require an actual Pydantic model — hasattr('schema') can match unrelated
+    # classes. pydantic is importable in the repo env by definition.
+    import pydantic
+
+    if not (isinstance(model, type) and issubclass(model, pydantic.BaseModel)):
+        raise RuntimeError(
+            f"'{model_name}' is not a pydantic.BaseModel subclass"
+        )
+
     # Prefer Pydantic v2; fall back to v1.
     if hasattr(model, "model_json_schema"):
         return model.model_json_schema()
-    if hasattr(model, "schema"):
-        return model.schema()
-    raise RuntimeError(
-        f"'{model_name}' is not a Pydantic model (no model_json_schema/schema)"
-    )
+    return model.schema()
 
 
 def main():

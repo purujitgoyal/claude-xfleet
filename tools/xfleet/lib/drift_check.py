@@ -86,7 +86,9 @@ def extract_canonical_block(section):
             if re.match(r"^```python\b", line.strip()):
                 body = []
                 for k in range(i + 1, len(lines)):
-                    if lines[k].strip().startswith("```"):
+                    # Only a bare closing fence at column 0 ends the block; an
+                    # indented/nested ``` inside the code does not.
+                    if re.match(r"^```\s*$", lines[k]):
                         return "\n".join(body)
                     body.append(lines[k])
                 return None
@@ -161,10 +163,32 @@ def repo_schema(repo_python, module, model):
     if proc.returncode != 0:
         detail = proc.stderr.strip() or proc.stdout.strip() or "(no output)"
         raise RuntimeError(f"Repo shape extraction failed: {detail}")
-    try:
-        return json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Repo helper produced non-JSON output: {exc}") from exc
+    return parse_repo_stdout(proc.stdout)
+
+
+def parse_repo_stdout(stdout):
+    """Extract the JSON Schema payload from helper stdout, tolerating noise.
+
+    The repo's imports may print warnings/log lines to stdout before the JSON.
+    Try whole-stdout parse first, then the last non-empty line, then the first
+    line beginning with '{'. Raise with the raw stdout on total failure.
+    """
+    candidates = [stdout]
+    lines = [ln for ln in stdout.splitlines() if ln.strip()]
+    if lines:
+        candidates.append(lines[-1])
+    for ln in lines:
+        if ln.lstrip().startswith("{"):
+            candidates.append(ln)
+            break
+    for cand in candidates:
+        try:
+            return json.loads(cand)
+        except json.JSONDecodeError:
+            continue
+    raise RuntimeError(
+        f"Repo helper produced no parseable JSON. Raw stdout:\n{stdout!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -196,28 +220,25 @@ def classify(diff):
     """
     added, removed, type_changed, optionality_changed = [], [], [], []
 
-    for path in diff.get("dictionary_item_added", []):
+    # deepdiff 9.1.0 shapes: *_item_added/removed are SetOrdered (set-like) for
+    # dict keys and dict (path->value) for iterable items; *_changed/type_changes
+    # are dict (path->detail). Iterating any of them yields path strings, so we
+    # normalize every bucket to "iterate the paths" uniformly.
+    def paths(key):
+        return list(diff.get(key, ()))
+
+    # Added/removed members. A change inside a 'required' list (sorted list of
+    # field names) is an optionality change, not an add/remove of a property.
+    for path in paths("dictionary_item_added") + paths("iterable_item_added"):
         (optionality_changed if "['required']" in path else added).append(path)
-    for path in diff.get("dictionary_item_removed", []):
+    for path in paths("dictionary_item_removed") + paths("iterable_item_removed"):
         (optionality_changed if "['required']" in path else removed).append(path)
-    for path in diff.get("iterable_item_added", {}):
-        if "['required']" in path:
-            optionality_changed.append(path)
-        else:
-            added.append(path)
-    for path in diff.get("iterable_item_removed", {}):
-        if "['required']" in path:
-            optionality_changed.append(path)
-        else:
-            removed.append(path)
-    for path, change in diff.get("values_changed", {}).items():
-        # A change to a 'type' value is a type change; required membership is
-        # optionality; everything else falls back to type_changed for now.
-        if "['required']" in path:
-            optionality_changed.append(path)
-        else:
-            type_changed.append(path)
-    for path in diff.get("type_changes", {}):
+
+    # Value/type changes. A 'required' membership swap is optionality; otherwise
+    # treat as a type change (coarse — semantic classification is a later layer).
+    for path in paths("values_changed"):
+        (optionality_changed if "['required']" in path else type_changed).append(path)
+    for path in paths("type_changes"):
         type_changed.append(path)
 
     return added, removed, type_changed, optionality_changed

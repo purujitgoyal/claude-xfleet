@@ -120,16 +120,24 @@ Rules:
   `$XFLEET_COORDINATION_ROOT/resolutions/*.md` file the entry derives from.
 - State files are for state; decisions live here in the spec (cluster 4b).
 
-## Checklist-gate hook point (forthcoming — cluster 5, NOT in this plan)
+## Checklist gate (repo-spec mode — mandatory)
 
-repo-spec mode **will** invoke a checklist gate
-(`xfleet checklist --mode repo-spec`) before producing the snapshot. That
-subcommand is **cluster 5 scope and does not exist yet** — this skill only
-DECLARES the hook point. Until the gate ships, finalize-spec proceeds without
-it: the hook is **failure-tolerant and degrades gracefully**. Do NOT actually
-call `xfleet checklist` while the subcommand is missing — calling a
-non-existent subcommand is an error, not graceful degradation. Treat the gate
-as forthcoming.
+In repo-spec mode, **before producing the snapshot**, run:
+
+```
+xfleet checklist --mode repo-spec
+```
+
+- **Exit 0 (pass, warnings allowed):** proceed to snapshot.
+- **Non-zero exit (one or more ERROR-tier findings):** REFUSE the snapshot.
+  Surface every finding to the user and stop. Do not write `spec.md` or
+  `spec-v{N}.md` until the user resolves the errors and the gate passes.
+
+Warnings (e.g. a referenced test path missing because a repo is not checked
+out locally) do NOT fail the gate — only ERROR-tier findings cause non-zero
+exit. The gate validates structural completeness of the IP table +
+`contracts.md`: no dangling IP/contract refs, no orphan contracts, all
+required fields present, T4 flag explicit.
 
 ## Procedure
 
@@ -138,8 +146,9 @@ as forthcoming.
 2. **Inventory inputs** for the resolved mode (qa-spec: worker answers +
    drafted sections + captured decisions; repo-spec: per-repo `section.md`
    files + `$XFLEET_COORDINATION_ROOT/resolutions/*.md`). Read each fully.
-3. **(repo-spec only) Checklist gate** — declared hook point; skip while
-   `xfleet checklist` is absent (graceful degradation above).
+3. **(repo-spec only) Checklist gate** — run `xfleet checklist --mode
+   repo-spec`; on non-zero exit, REFUSE the snapshot and surface all findings
+   to the user; on exit 0, proceed.
 4. **Synthesize / merge** into `spec.md` — synthesize, don't concatenate;
    resolve duplication, align terminology, order logically. Every resolution
    must surface.
@@ -168,6 +177,6 @@ as forthcoming.
 | "This resolution is obvious — I'll skip it in the Decisions Log." | Every resolution must surface as a `### D-N` entry. The Decisions Log is the forward-looking audit trail for why the spec diverges from any repo's earlier draft. |
 | "I'll bump a counter / state field for the snapshot version." | There is no stateful version counter. The filesystem is the source of truth — `max(N)` among existing `spec-v*.md` files `+ 1`. A side counter drifts. |
 | "I'll snapshot on every mid-phase edit." | Snapshots happen at phase exits only. Mid-phase orch edits land in the current `spec.md` until the next phase-exit snapshot. |
-| "The checklist gate isn't built — I'll call it anyway / stub it." | `xfleet checklist` is cluster 5 and does not exist. Calling it errors. Declare the hook, skip it gracefully, proceed without. |
+| "The checklist gate failed — I'll snapshot anyway / ignore the findings." | The gate is mandatory in repo-spec mode. A non-zero exit means ERROR-tier findings exist; snapshotting over them hides structural defects in the spec. Surface the findings, wait for resolution, re-run the gate. |
 | "No workers active — I'll skip human approval too." | Worker review is conditional on availability; human approval is mandatory. Present `spec.md` and wait. |
 | "I'll `rm $XFLEET_COORDINATION_ROOT/resolutions/` while I'm here." | Don't. Those are cleaned by `/cleanup`. Removing them here leaves a partial cleanup and breaks the `/cleanup` pre-flight guard's signal. |

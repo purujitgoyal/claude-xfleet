@@ -12,7 +12,7 @@
 # Asserts the skill documents: (a) mode auto-detection from current_phase;
 # (b) --mode override; (c) the snapshot increment rule (max spec-vN + 1,
 # filesystem-as-counter); (d) the Decisions Log format markers; (e) the
-# checklist-gate hook declared AND noted as graceful-degradation/forthcoming.
+# checklist-gate hook as mandatory in repo-spec mode with refuse-on-nonzero.
 # Plus frontmatter, the load-bearing ## Protocol heading, and the two
 # shared-doc cross-refs (design-principles.md is a forward ref to Task 13).
 
@@ -118,15 +118,15 @@ assert_heading() {
     grep -Fq "**Resolved in:**" "${SKILL}"
 }
 
-# --- (e) checklist-gate hook: declared AND graceful-degradation/forthcoming -
+# --- (e) checklist-gate hook: mandatory in repo-spec, refuse-on-nonzero ------
 
 @test "declares the checklist-gate hook point" {
     run grep -E "xfleet checklist --mode repo-spec" "${SKILL}"
     [ "$status" -eq 0 ]
 }
 
-@test "notes the checklist gate is forthcoming / degrades gracefully" {
-    run grep -E "forthcoming|degrade|does not exist|graceful" "${SKILL}"
+@test "documents checklist gate is mandatory and refuse-on-nonzero" {
+    run grep -E "REFUSE|refuse|non-zero|mandatory" "${SKILL}"
     [ "$status" -eq 0 ]
 }
 

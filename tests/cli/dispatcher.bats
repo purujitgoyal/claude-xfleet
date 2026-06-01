@@ -83,15 +83,14 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
 # ---------------------------------------------------------------------------
 # (c) known subcommands: each routes to its handler and is dispatched.
 #
-# Subcommands with real implementations (Task 20) that require args or env
-# vars will exit non-zero when called bare — but they must still be reachable
-# (not "unknown subcommand" errors). We assert the handler was invoked by
-# checking that the exit code is NOT the dispatcher's own "unknown" exit path:
-# the dispatcher exits 1 with an "Unknown subcommand" error; a real handler
-# invoked with no args exits 1 with a usage error — both are exit 1, so we
-# verify handler output instead.
-#
-# Stubs that haven't been implemented yet still exit 0 (unchanged behavior).
+# Every subcommand now has a real implementation. Called bare (no args/env),
+# each handler exits non-zero with its OWN error — a role gate
+# ("XFLEET_ROLE is not set"), a coordination-root gate, or a usage/arg error.
+# The dispatcher itself never emits these; an unrouted name produces the
+# dispatcher's "Unknown subcommand" error instead. So we assert ROUTING, not
+# exit-0: the handler was reached iff the exit is non-zero AND stderr is not
+# the dispatcher's "Unknown subcommand" error. (Same contract as the
+# drift-check / checklist / integration-ready tests below.)
 # ---------------------------------------------------------------------------
 
 @test "(c) xfleet status routes to handler and exits 0" {
@@ -129,79 +128,94 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [[ "${stderr}" =~ "ack" ]] || [[ "${stderr}" =~ [Uu]sage ]]
 }
 
-@test "(c) xfleet question routes to handler and exits 0" {
-    run "${XFLEET}" question
-    [ "$status" -eq 0 ]
+@test "(c) xfleet question routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" question
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet answer routes to handler and exits 0" {
-    run "${XFLEET}" answer
-    [ "$status" -eq 0 ]
+@test "(c) xfleet answer routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" answer
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet concern routes to handler and exits 0" {
-    run "${XFLEET}" concern
-    [ "$status" -eq 0 ]
+@test "(c) xfleet concern routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" concern
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet concern-reopen routes to handler and exits 0" {
-    run "${XFLEET}" concern-reopen
-    [ "$status" -eq 0 ]
+@test "(c) xfleet concern-reopen routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" concern-reopen
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet resolution routes to handler and exits 0" {
-    run "${XFLEET}" resolution
-    [ "$status" -eq 0 ]
+@test "(c) xfleet resolution routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" resolution
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet directive routes to handler and exits 0" {
-    run "${XFLEET}" directive
-    [ "$status" -eq 0 ]
+@test "(c) xfleet directive routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" directive
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet task routes to handler and exits 0" {
-    run "${XFLEET}" task
-    [ "$status" -eq 0 ]
+@test "(c) xfleet task routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" task
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet escalation routes to handler and exits 0" {
-    run "${XFLEET}" escalation
-    [ "$status" -eq 0 ]
+@test "(c) xfleet escalation routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" escalation
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet phase routes to handler and exits 0" {
-    run "${XFLEET}" phase
-    [ "$status" -eq 0 ]
+@test "(c) xfleet phase routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" phase
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet engage routes to handler and exits 0" {
-    run "${XFLEET}" engage
-    [ "$status" -eq 0 ]
+@test "(c) xfleet engage routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" engage
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet disengage routes to handler and exits 0" {
-    run "${XFLEET}" disengage
-    [ "$status" -eq 0 ]
+@test "(c) xfleet disengage routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" disengage
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet resume routes to handler and exits 0" {
-    run "${XFLEET}" resume
-    [ "$status" -eq 0 ]
+@test "(c) xfleet resume routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" resume
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet continue routes to handler and exits 0" {
-    run "${XFLEET}" continue
-    [ "$status" -eq 0 ]
+@test "(c) xfleet continue routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" continue
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet phase-complete routes to handler and exits 0" {
-    run "${XFLEET}" phase-complete
-    [ "$status" -eq 0 ]
+@test "(c) xfleet phase-complete routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" phase-complete
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
-@test "(c) xfleet review routes to handler and exits 0" {
-    run "${XFLEET}" review
-    [ "$status" -eq 0 ]
+@test "(c) xfleet review routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" review
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
 @test "(c) xfleet drift-check routes to handler (not unknown subcommand)" {

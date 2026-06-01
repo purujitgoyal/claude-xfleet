@@ -19,13 +19,13 @@
 #   0 — drift check ran; state written (drift-clean or drift-detected)
 #   1 — validation error, role rejection, or hard drift_check.py failure
 
-_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_DRIFT_CHECK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/strict-mode.sh
-source "${_DIR}/../lib/strict-mode.sh"
+source "${_DRIFT_CHECK_DIR}/../lib/strict-mode.sh"
 # shellcheck source=../lib/sender-authority.sh
-source "${_DIR}/../lib/sender-authority.sh"
+source "${_DRIFT_CHECK_DIR}/../lib/sender-authority.sh"
 # shellcheck source=../lib/state-io.sh
-source "${_DIR}/../lib/state-io.sh"
+source "${_DRIFT_CHECK_DIR}/../lib/state-io.sh"
 
 # ---------------------------------------------------------------------------
 # Role check — worker only
@@ -169,21 +169,21 @@ else
     REPO_PYTHON="python3"
 fi
 
+# xfleet's own interpreter — runs drift_check.py (needs pydantic + deepdiff)
+XFLEET_PYTHON="${XFLEET_PYTHON:-python3}"
+
 # ---------------------------------------------------------------------------
 # Locate drift_check.py (sibling of this script's lib directory)
 # ---------------------------------------------------------------------------
-DRIFT_CHECK_PY="${_DIR}/../lib/drift_check.py"
+DRIFT_CHECK_PY="${_DRIFT_CHECK_DIR}/../lib/drift_check.py"
 if [[ ! -f "${DRIFT_CHECK_PY}" ]]; then
     printf 'Error: drift_check.py not found at %s\n' "${DRIFT_CHECK_PY}" >&2
     exit 1
 fi
 
-XFLEET_PYTHON="${XFLEET_PYTHON:-python3}"
-
 # ---------------------------------------------------------------------------
 # Invoke drift_check.py; capture JSON report
 # ---------------------------------------------------------------------------
-REPORT=""
 DRIFT_EXIT=0
 REPORT="$("${XFLEET_PYTHON}" "${DRIFT_CHECK_PY}" \
     --contract "${CONTRACT}" \
@@ -218,15 +218,18 @@ printf '%s\n' "${REPORT}"
 # state_update_field takes only (path, jq-expr) — no --arg passthrough.
 # Build the expression using jq --arg binding to avoid injection on $IP / $CONTRACT.
 # ---------------------------------------------------------------------------
-if [[ -f "${WORKER_STATE}" ]]; then
-    CURRENT_STATE="$(state_read "${WORKER_STATE}")"
-    UPDATED_STATE="$(printf '%s' "${CURRENT_STATE}" | jq \
-        --arg ip       "${IP}" \
-        --arg contract "${CONTRACT}" \
-        --arg val      "${SELF_CHECK}" \
-        '.ip_self_check[$ip][$contract] = $val')"
-    state_write_atomic "${WORKER_STATE}" "${UPDATED_STATE}"
+if [[ ! -f "${WORKER_STATE}" ]]; then
+    printf 'Error: worker state file not found: %s\n' "${WORKER_STATE}" >&2
+    exit 1
 fi
+
+CURRENT_STATE="$(state_read "${WORKER_STATE}")"
+UPDATED_STATE="$(printf '%s' "${CURRENT_STATE}" | jq \
+    --arg ip       "${IP}" \
+    --arg contract "${CONTRACT}" \
+    --arg val      "${SELF_CHECK}" \
+    '.ip_self_check[$ip][$contract] = $val')"
+state_write_atomic "${WORKER_STATE}" "${UPDATED_STATE}"
 
 printf 'drift-check: state written (ip=%s contract=%s check=%s)\n' \
     "${IP}" "${CONTRACT}" "${SELF_CHECK}"

@@ -256,3 +256,53 @@ skill (or emits `phase-complete`). `idle` → first-phase needs no handoff.
   memory and apply across phases).
 - Do **not** run `/clear` — the human controls that. `docs/superpowers/*` is
   git-excluded, so handoffs are never committed.
+
+## Epics & Integration Points
+
+Workers decompose their `plan.md` into a `## Epics` table during the `plan` phase
+(see the `## Epics` table template in `plan.md` — the template workers fill; do not
+inline it here). Each epic is anchored to an Integration Point id (e.g. `IP-1`) or
+marked `internal` when it contributes no cross-repo contract.
+
+### Plan-fold coverage (cluster 5, extends cluster 3)
+
+Every IP this repo contributes to must have ≥1 anchored epic, and every in-scope
+contract for that IP must be touched by ≥1 anchored epic. A plan is not mergeable
+while any contributed IP has no anchored epic or an in-scope contract has no
+touching epic.
+
+### Epic-close discipline (`verification-before-completion`)
+
+At the close of each epic, gather drift-check and test evidence **before** claiming
+it done. For every in-scope contract associated with the epic's IP, run:
+
+```
+xfleet drift-check --contract C-N --repo {repo}
+```
+
+`xfleet drift-check` writes `ip_self_check[IP][C] = drift-clean | drift-detected`
+into the worker state file. Do **not** signal readiness while any in-scope contract
+reports `drift-detected` — this is the `drift-detected` self-check gate. Only
+proceed (or claim DONE) once all in-scope contracts for the IP read `drift-clean`.
+
+### Integration-ready signal
+
+When **all** epics anchored to an IP are done **and** all in-scope contracts for
+that IP are `drift-clean` (confirmed via `ip_self_check`), run:
+
+```
+xfleet integration-ready --ip N
+```
+
+This signals the orchestrator, which fires the IP verification stack. The worker
+does not poll or wait — execution continues to the next epic or IP.
+
+### Worker state fields
+
+- **`current_ip`** — the IP this worker is currently working toward; `null` when
+  between IPs. Update this field on IP entry and clear it on IP completion.
+- **`ip_self_check`** — per-IP per-contract self-check status, written by
+  `xfleet drift-check`. Possible values per contract: `drift-clean`,
+  `drift-detected`, `not-yet-checked`. The worker must not emit
+  `xfleet integration-ready` while any contract for the IP reads `drift-detected`
+  or `not-yet-checked`.

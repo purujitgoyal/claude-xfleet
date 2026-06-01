@@ -237,6 +237,9 @@ milestones; per-repo evolution is incremental within phases.
 
 ## Integration Point Verification
 
+See `shared/cluster-5-templates.md` for the canonical `## Integration Points`
+table format (Template A) and the contracts block format (Template B).
+
 Orch watches `integration_readiness` in `_orchestrator.json`. For each IP, the
 set of contributing repos comes from the `## Integration Points` table in
 `spec.md` (orch reads **its own** `spec.md` — NEVER peer-repo source, per

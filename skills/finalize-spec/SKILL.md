@@ -122,6 +122,9 @@ Rules:
 
 ## Checklist gate (repo-spec mode — mandatory)
 
+See `shared/cluster-5-templates.md` for the canonical IP table and contract block
+formats (Template A and Template B) that this gate validates.
+
 In repo-spec mode, **before producing the snapshot**, run:
 
 ```

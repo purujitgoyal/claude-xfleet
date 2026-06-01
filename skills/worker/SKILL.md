@@ -259,10 +259,11 @@ skill (or emits `phase-complete`). `idle` → first-phase needs no handoff.
 
 ## Epics & Integration Points
 
-Workers decompose their `plan.md` into a `## Epics` table during the `plan` phase
-(see the `## Epics` table template in `plan.md` — the template workers fill; do not
-inline it here). Each epic is anchored to an Integration Point id (e.g. `IP-1`) or
-marked `internal` when it contributes no cross-repo contract.
+Workers decompose their `plan.md` into a `## Epics` table during the `plan` phase.
+See `shared/cluster-5-templates.md` for the canonical `## Epics` and `## Integration
+Points` table formats (Template C and Template A respectively). Each epic is anchored
+to an Integration Point id (e.g. `IP-1`) or marked `internal` when it contributes no
+cross-repo contract.
 
 ### Plan-fold coverage (cluster 5, extends cluster 3)
 

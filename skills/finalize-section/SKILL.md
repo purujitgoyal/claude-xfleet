@@ -66,6 +66,19 @@ The apply-then-copy ORDER is load-bearing: revisions land in `section.md`
 **before** the snapshot copy, so `section-v{N+1}.md` captures the section
 *including* the pending revisions, never a stale pre-revision copy.
 
+### Parallel contracts snapshot (cluster 5)
+
+At the same moment `section.md` → `section-v{N+1}.md` is taken (end of
+repo-spec), take a **parallel snapshot** of `contracts.md` →
+`contracts-v{M+1}.md`. The contracts snapshot uses the **same Model A mechanic
+and filesystem-as-counter rule**, but with an **independent version counter**:
+count existing `contracts-v*.md` files specifically (not `section-v*` files) and
+take `max(M) + 1`. The two counters are never coupled — section and contracts
+snapshots increment separately. This extends the cluster 4c durable list.
+
+Absence of a `contracts.md` (e.g. the section predates cluster 5) skips the
+parallel snapshot without error — section snapshotting proceeds unchanged.
+
 ## Review without git (F-54)
 
 Reviewers **diff `section.md` against `section-v{max}.md`** (the latest
@@ -99,12 +112,17 @@ rare, so subdir versioning is the exception, not the common path.
 4. **Snapshot (Model A)** — copy the revised `section.md` →
    `section-v{N+1}.md`. Never overwrite `section-v0.md` or any existing
    snapshot.
-5. **(re-distribute case)** If this finalize follows a mid-session
+5. **(Parallel — contracts snapshot)** If `contracts.md` is present, list
+   existing `contracts-v*.md` files, take `max(M)` (independent counter), and
+   copy `contracts.md` → `contracts-v{M+1}.md`. The contracts version counter
+   is independent of the section counter — count `contracts-v*` files only.
+   Skip silently if `contracts.md` is absent.
+6. **(re-distribute case)** If this finalize follows a mid-session
    re-distribute, work under a fresh `xfleet/{slug}-v{K}/` subdir rather than
    continuing the prior section's `section-vN` lineage.
-6. **Report** — the section path, the snapshot filename written, the
-   revisions baked in, and the diff baseline (`section-v{max}.md`) reviewers
-   should compare `section.md` against.
+7. **Report** — the section path, the snapshot filenames written (section and
+   contracts), the revisions baked in, and the diff baseline
+   (`section-v{max}.md`) reviewers should compare `section.md` against.
 
 ## Rationalizations to reject
 
@@ -115,3 +133,4 @@ rare, so subdir versioning is the exception, not the common path.
 | "I'll overwrite `section-v0.md` with the latest." | `section-v0.md` is the immutable spec-distribution seed. It is never overwritten — snapshots only ever add new `section-v{N+1}.md` files. |
 | "The section was re-distributed; I'll just bump `section-vN`." | Mid-session re-distribute uses subdir versioning (`xfleet/{slug}-v1/`, `-v2/`), not an in-place `section-vN` bump. The prior lineage stays intact. |
 | "Let me track `section.md` in git so reviewers can diff it." | F-54 rejected git tracking — it pollutes the repo's history with PR-irrelevant churn. Reviewers diff `section.md` against `section-v{max}.md`; that's the review-without-git mechanism. |
+| "I'll use the section-vN counter for the contracts snapshot too." | The contracts version counter is independent — count `contracts-v*.md` files specifically. The two counters are never coupled; using the wrong file glob gives a wrong version number. |

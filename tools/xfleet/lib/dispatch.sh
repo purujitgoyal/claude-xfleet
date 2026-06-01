@@ -142,8 +142,7 @@ _dispatch_orchestrator() {
             _dispatch_append_completion_log
             ;;
         integration-ready)
-            local worker repo ip
-            worker="$(printf '%s' "${msg}" | jq -r '.worker // empty')"
+            local repo ip
             repo="$(printf '%s' "${msg}" | jq -r '.repo // empty')"
             ip="$(printf '%s' "${msg}" | jq -r '.ip // empty')"
             local handler="${_DISPATCH_HANDLERS}/integration-ready-handler.sh"

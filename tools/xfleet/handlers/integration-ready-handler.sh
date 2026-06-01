@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# integration-ready-handler.sh — Reflexive handler for integration-ready (Task 8).
+# integration-ready-handler.sh — inbound handler for integration-ready (Task 8).
 #
 # Invoked internally by the ORCHESTRATOR's inbox listener when an
 # "integration-ready" wire message arrives from a worker. Records

@@ -23,7 +23,7 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [ -n "$output" ]
 }
 
-@test "(a) xfleet --help lists all 19 subcommands" {
+@test "(a) xfleet --help lists all 20 subcommands" {
     run "${XFLEET}" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"status"* ]]
@@ -45,6 +45,7 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [[ "$output" == *"continue"* ]]
     [[ "$output" == *"phase-complete"* ]]
     [[ "$output" == *"review"* ]]
+    [[ "$output" == *"drift-check"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -199,6 +200,16 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
 @test "(c) xfleet review routes to handler and exits 0" {
     run "${XFLEET}" review
     [ "$status" -eq 0 ]
+}
+
+@test "(c) xfleet drift-check routes to handler (not unknown subcommand)" {
+    # drift-check requires env + flags; bare invocation exits 1 with a handler
+    # error (role or usage), NOT the dispatcher's "Unknown subcommand" error.
+    run --separate-stderr "${XFLEET}" drift-check
+    [ "$status" -ne 0 ]
+    # Handler errors mention the subcommand or env/flag requirements; dispatcher
+    # "Unknown subcommand" errors always contain "Unknown". Either check passes.
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
 }
 
 # ---------------------------------------------------------------------------

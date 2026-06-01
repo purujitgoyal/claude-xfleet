@@ -23,7 +23,7 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [ -n "$output" ]
 }
 
-@test "(a) xfleet --help lists all 21 subcommands" {
+@test "(a) xfleet --help lists all 22 subcommands" {
     run "${XFLEET}" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"status"* ]]
@@ -47,6 +47,7 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [[ "$output" == *"review"* ]]
     [[ "$output" == *"drift-check"* ]]
     [[ "$output" == *"checklist"* ]]
+    [[ "$output" == *"integration-ready"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -217,6 +218,14 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     # checklist requires --mode; bare invocation exits 1 with a usage error,
     # NOT the dispatcher's "Unknown subcommand" error.
     run --separate-stderr "${XFLEET}" checklist
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
+}
+
+@test "(c) xfleet integration-ready routes to handler (not unknown subcommand)" {
+    # integration-ready requires XFLEET_ROLE=worker and --ip; bare invocation
+    # exits 1 with a role or usage error, NOT the dispatcher's "Unknown subcommand".
+    run --separate-stderr "${XFLEET}" integration-ready
     [ "$status" -ne 0 ]
     [[ "${stderr}" != *"Unknown subcommand"* ]]
 }

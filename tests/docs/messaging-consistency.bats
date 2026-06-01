@@ -25,7 +25,7 @@ SECTION_H_MARKER='SECTION-H-SUBCOMMAND-TABLE'
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Load the 21 registry names into the REGISTRY_NAMES array.
+# Load the 22 registry names into the REGISTRY_NAMES array.
 load_registry_names() {
     # shellcheck disable=SC1090
     source "${REGISTRY}"
@@ -84,9 +84,9 @@ extract_table_names() {
     [ -f "${REGISTRY}" ]
 }
 
-@test "registry exposes exactly 21 subcommands" {
+@test "registry exposes exactly 22 subcommands" {
     load_registry_names
-    [ "${#REGISTRY_NAMES[@]}" -eq 21 ]
+    [ "${#REGISTRY_NAMES[@]}" -eq 22 ]
 }
 
 @test "section (h) marker is present in messaging.md" {
@@ -94,11 +94,11 @@ extract_table_names() {
     [ "$status" -eq 0 ]
 }
 
-@test "section (h) table has exactly 21 data rows" {
+@test "section (h) table has exactly 22 data rows" {
     run extract_table_names
     [ "$status" -eq 0 ]
     count="$(printf '%s\n' "$output" | grep -c .)"
-    [ "$count" -eq 21 ]
+    [ "$count" -eq 22 ]
 }
 
 # ---------------------------------------------------------------------------

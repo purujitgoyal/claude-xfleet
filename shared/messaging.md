@@ -24,6 +24,7 @@ There are three structural categories:
 | **Content-carrying** | `directive`, `task`, `concern`, `concern-reopen`, `resolution`, `question`, `answer`, `review`, `escalation`, `phase-complete` | Each carries exactly one of `--message` / `--message-file` (section d). |
 | **State-mutating** | `engage`, `disengage`, `phase` | Mutate state files (`_orchestrator.json`, session-local `current_phase`). |
 | **Read-only / session-local** | `status`, `peek`, `listen`, `ack`, `resume`, `continue` | No authority enforcement; auto-allowed. |
+| **Signal-only** | `integration-ready` | Worker→orch signal; no `--message`, no rounds, no response expected. `--ip` required. |
 
 Type is determined by the subcommand — never by a `--type` flag.
 
@@ -170,7 +171,7 @@ never collide on counter keys.
 ## (h) Subcommand table  <!-- SECTION-H-SUBCOMMAND-TABLE -->
 
 Canonical 5-column reference. Contains a row for **every** name in
-`tools/xfleet/lib/subcommand-registry.sh` (`XFLEET_SUBCOMMANDS`, exactly 21) and
+`tools/xfleet/lib/subcommand-registry.sh` (`XFLEET_SUBCOMMANDS`, exactly 22) and
 **only** those names. Reflexive handlers (section f) are intentionally excluded.
 The consistency test (`tests/docs/messaging-consistency.bats`) asserts this table
 and the registry stay in lockstep. The **emits reflexive?** column records whether
@@ -199,3 +200,4 @@ invoking the subcommand triggers reflexive auto-handler emissions (section f).
 | `review` | worker only | orchestrator | exactly one of `--message` / `--message-file` | no |
 | `drift-check` | worker only | — | none | no |
 | `checklist` | orchestrator (in finalize-spec) | — | none | no |
+| `integration-ready` | worker only | orchestrator | none (`--ip` required) | no |

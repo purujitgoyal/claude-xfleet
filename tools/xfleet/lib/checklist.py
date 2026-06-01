@@ -74,7 +74,7 @@ def parse_ip_table(text):
         table_lines.append(line)
 
     # Extract rows (lines beginning with |, skip separator rows).
-    raw_rows = [l for l in table_lines if l.startswith("|") and not re.match(r"^\|[-| ]+\|", l)]
+    raw_rows = [l for l in table_lines if l.startswith("|") and not re.match(r"^\|[-:| ]+\|", l)]
     if not raw_rows:
         findings.append(error("IP-TABLE-EMPTY", "## Integration Points table has no data rows"))
         return [], findings

@@ -125,6 +125,15 @@ if [[ -z "${IP}" ]]; then
     exit 1
 fi
 
+# Normalize to IP-N form so the ip_self_check key matches the integration_readiness
+# key written by integration-ready.sh / the orch handler (accept "1" or "IP-1").
+if [[ "${IP}" =~ ^[0-9]+$ ]]; then
+    IP="IP-${IP}"
+elif [[ ! "${IP}" =~ ^IP-[0-9]+$ ]]; then
+    printf 'drift-check: IP value "%s" is invalid; expected a number (1) or IP-N form (IP-1).\n' "${IP}" >&2
+    exit 1
+fi
+
 # ---------------------------------------------------------------------------
 # Resolve contracts.md path:
 #   1. --contracts-file flag (explicit)

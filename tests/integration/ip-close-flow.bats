@@ -38,7 +38,7 @@ setup() {
     # Load redis guard helpers.
     load "../lib/redis-guard.bash"
 
-    export XFLEET_PYTHON="/Users/purujit/.config/xfleet/venv/bin/python"
+    export XFLEET_PYTHON="${XFLEET_PYTHON:-/Users/purujit/.config/xfleet/venv/bin/python}"
     export XFLEET_REDIS_URL="${XFLEET_REDIS_URL:-${XFLEET_TEST_REDIS_URL}}"
     export CLAUDE_PLUGIN_ROOT="${REPO_ROOT}"
 

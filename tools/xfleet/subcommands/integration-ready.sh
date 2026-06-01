@@ -72,6 +72,17 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Resolve the canonical worker/repo token (required for the wire message).
+# Guard explicitly so an unset value yields a friendly error rather than a
+# `set -u` "unbound variable" crash (parity with drift-check.sh).
+# ---------------------------------------------------------------------------
+WORKER_NAME="${XFLEET_WORKER_NAME:-}"
+if [[ -z "${WORKER_NAME}" ]]; then
+    printf 'Error: XFLEET_WORKER_NAME is not set (required for the integration-ready signal).\n' >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Build wire message (signal-only; no content body)
 # ---------------------------------------------------------------------------
 MSG_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
@@ -79,8 +90,8 @@ TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 MSG="$(jq -cn \
     --arg type      "integration-ready" \
-    --arg worker    "${XFLEET_WORKER_NAME}" \
-    --arg repo      "${XFLEET_WORKER_NAME}" \
+    --arg worker    "${WORKER_NAME}" \
+    --arg repo      "${WORKER_NAME}" \
     --arg ip        "${IP_KEY}" \
     --arg id        "${MSG_ID}" \
     --arg timestamp "${TIMESTAMP}" \
@@ -93,4 +104,4 @@ MSG="$(jq -cn \
 xfleet_redis XADD "inbox:orchestrator" MAXLEN "~" 200 "*" data "${MSG}" >/dev/null
 
 printf 'integration-ready: sent to orchestrator (id: %s, worker: %s, ip: %s)\n' \
-    "${MSG_ID}" "${XFLEET_WORKER_NAME}" "${IP_KEY}"
+    "${MSG_ID}" "${WORKER_NAME}" "${IP_KEY}"

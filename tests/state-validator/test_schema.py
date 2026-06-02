@@ -259,6 +259,27 @@ def run_cases():
     bad["status"] = "not-a-status"
     check("(i3) invalid worker status enum rejected", not is_valid(worker, bad))
 
+    # (j) session_scratch accepts arbitrary nested content (orchestrator)
+    ok = json.loads(json.dumps(VALID_ORCHESTRATOR))
+    ok["session_scratch"] = {"wave-note": "anything", "count": 3, "nested": {"k": [1, 2]}}
+    check("(j) session_scratch accepts arbitrary keys (orchestrator)", is_valid(orch, ok))
+
+    # (j2) session_scratch accepts arbitrary nested content (worker)
+    ok = json.loads(json.dumps(VALID_WORKER))
+    ok["session_scratch"] = {"scratch-thing": True}
+    check("(j2) session_scratch accepts arbitrary keys (worker)", is_valid(worker, ok))
+
+    # (j3) unknown key OUTSIDE session_scratch is still rejected (strict preserved)
+    bad = json.loads(json.dumps(VALID_WORKER))
+    bad["session_scratch"] = {"ok": 1}
+    bad["bogus_top_level"] = 1
+    check("(j3) unknown top-level key still rejected alongside session_scratch", not is_valid(worker, bad))
+
+    # (j4) session_scratch must be an object, not a scalar
+    bad = json.loads(json.dumps(VALID_WORKER))
+    bad["session_scratch"] = "not-an-object"
+    check("(j4) non-object session_scratch rejected", not is_valid(worker, bad))
+
     return results
 
 

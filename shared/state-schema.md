@@ -73,6 +73,13 @@ description is a defect.
   currently working toward; null when between IPs.
 - `ip_self_check` is the per-IP per-contract self-check status written by
   xfleet drift-check at epic close (verification-before-completion).
+- `session_scratch` is a reserved, permissively-validated namespace for
+  ad-hoc session-scoped stash that does not belong in the durable schema.
+  Unlike every other top-level key, its contents are not validated. It is
+  the escape valve referenced by cluster 4b / A1: prefer a typed field or a
+  first-class artifact, and reach for scratch only for genuinely unstructured,
+  throwaway data. It is session-scoped and swept at cleanup, never a durable
+  record.
 
 ### Derived — NOT stored
 
@@ -196,6 +203,7 @@ edit by hand — run `tools/xfleet/gen-state-schema-doc.sh` to regenerate.
 | `drift_log[].repo` | string | yes | Contributing repo name. |
 | `drift_log[].classification` | enum: additive, non-breaking, breaking, removal | yes | API Evolve taxonomy class. |
 | `drift_log[].resolved_at` | string \| null | yes | ISO timestamp when the drift was resolved, else null. |
+| `session_scratch` | object | no | Reserved escape-valve namespace for ad-hoc, session-scoped, unstructured data that does not fit the durable schema (cluster 4b / A1). Content here is intentionally NOT validated (additionalProperties true) while every other top-level key stays strictly checked. Session-scoped and non-durable: swept at cleanup. Use sparingly — first-class data belongs in a typed field or its own artifact. |
 
 ### `{worker}.json`
 
@@ -223,6 +231,7 @@ edit by hand — run `tools/xfleet/gen-state-schema-doc.sh` to regenerate.
 | `ip_self_check` | object | no | Per-IP per-contract self-check status from verification-before-completion at epic close. Written by xfleet drift-check. |
 | `ip_self_check.{key}` | object | no |  |
 | `ip_self_check.{key}.{key}` | enum: drift-clean, drift-detected, not-yet-checked | no |  |
+| `session_scratch` | object | no | Reserved escape-valve namespace for ad-hoc, session-scoped, unstructured data that does not fit the durable schema (cluster 4b / A1). Content here is intentionally NOT validated (additionalProperties true) while every other top-level key stays strictly checked. Session-scoped and non-durable: swept at cleanup. Use sparingly — first-class data belongs in a typed field or its own artifact. |
 <!-- END GENERATED -->
 
 ---

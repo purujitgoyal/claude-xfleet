@@ -325,6 +325,11 @@
               "resolved_at": { "description": "ISO timestamp when the drift was resolved, else null.", "type": ["string", "null"] }
             }
           }
+        },
+        "session_scratch": {
+          "type": "object",
+          "description": "Reserved escape-valve namespace for ad-hoc, session-scoped, unstructured data that does not fit the durable schema (cluster 4b / A1). Content here is intentionally NOT validated (additionalProperties true) while every other top-level key stays strictly checked. Session-scoped and non-durable: swept at cleanup. Use sparingly — first-class data belongs in a typed field or its own artifact.",
+          "additionalProperties": true
         }
       }
     },
@@ -435,6 +440,11 @@
             "type": "object",
             "additionalProperties": { "type": "string", "enum": ["drift-clean", "drift-detected", "not-yet-checked"] }
           }
+        },
+        "session_scratch": {
+          "type": "object",
+          "description": "Reserved escape-valve namespace for ad-hoc, session-scoped, unstructured data that does not fit the durable schema (cluster 4b / A1). Content here is intentionally NOT validated (additionalProperties true) while every other top-level key stays strictly checked. Session-scoped and non-durable: swept at cleanup. Use sparingly — first-class data belongs in a typed field or its own artifact.",
+          "additionalProperties": true
         }
       }
     }

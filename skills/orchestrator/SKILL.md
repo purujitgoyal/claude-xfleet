@@ -119,6 +119,15 @@ run `check_phase_complete()` after **every state-changing inbound** (`review`,
 `escalation-response`). Log each evaluation to `_orchestrator.json:completion_log[]`
 for debuggability.
 
+The listener **mechanically evaluates `phase-complete`**: on each inbound
+`phase-complete` it derives the participating workers (one `{worker}.json` under
+`state/`), computes which have signaled the message's phase, and appends a real
+`{outcome, missing_workers, worker, phase}` entry to `completion_log[]`. Read
+`completion_log[-1]` for the current verdict instead of recomputing it. The other
+inbound signals above are not yet mechanized — evaluate those yourself from
+`xfleet status`. (Mechanical evaluation never emits: phase-advance stays
+human-gated below.)
+
 **The check evaluating true does NOT auto-emit** (F-14 / F-17). A phase-level
 emission is gated on the human:
 

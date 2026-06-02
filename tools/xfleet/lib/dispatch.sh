@@ -22,7 +22,7 @@
 #     task-response    → task-response-handler.sh
 #     directive-response → update _orchestrator.json directive_log[].response_status
 #     escalation       → append escalation_log[] entry to _orchestrator.json
-#     phase-complete   → append completion_log[] entry to _orchestrator.json
+#     phase-complete   → evaluate phase completion, append completion_log[] entry
 #     (other)          → no-op / return 0
 #
 # Usage (source, do not execute directly):
@@ -139,7 +139,7 @@ _dispatch_orchestrator() {
             _dispatch_append_escalation_log "${msg}"
             ;;
         phase-complete)
-            _dispatch_append_completion_log
+            _dispatch_check_phase_complete "${msg}"
             ;;
         integration-ready)
             local repo ip
@@ -235,13 +235,27 @@ _dispatch_append_escalation_log() {
 }
 
 # ---------------------------------------------------------------------------
-# _dispatch_append_completion_log
-# Appends a completion_log[] entry to _orchestrator.json recording receipt.
+# _dispatch_check_phase_complete <message-json>
+# Evaluate whether the triggering phase is complete and append a real
+# completion_log[] entry to _orchestrator.json.
+#
+# "Complete" = every participating worker has sent phase-complete for the phase
+# named in the message. Participating workers = the {worker}.json files under
+# state/ (excluding _orchestrator.json) — the same short-names the message's
+# `worker` field carries. The received set is reconstructed from prior
+# completion_log entries for the same phase, plus the triggering worker.
+#
+# Diagnostic only: it computes outcome + missing_workers and logs them. It NEVER
+# emits a phase-advance signal — phase emission stays human-gated (F-14 / F-17).
+# missing_signals stays [] here (review/resolution-signal tracking is out of
+# scope for this completion check).
 # ---------------------------------------------------------------------------
-_dispatch_append_completion_log() {
+_dispatch_check_phase_complete() {
+    local msg="$1"
+
     local coord_root="${XFLEET_COORDINATION_ROOT:-}"
     if [[ -z "${coord_root}" ]]; then
-        printf 'dispatch_message: XFLEET_COORDINATION_ROOT is not set; cannot append completion_log.\n' >&2
+        printf 'dispatch_message: XFLEET_COORDINATION_ROOT is not set; cannot evaluate phase completion.\n' >&2
         return 1
     fi
 
@@ -251,6 +265,35 @@ _dispatch_append_completion_log() {
         return 1
     fi
 
+    local worker phase
+    worker="$(printf '%s' "${msg}" | jq -r '.worker // empty')"
+    phase="$(printf '%s' "${msg}" | jq -r '.phase // empty')"
+
+    # Expected participating workers = state/{worker}.json basenames, minus _orchestrator.
+    local expected_json
+    expected_json="$(find "${coord_root}/state" -maxdepth 1 -type f -name '*.json' -exec basename {} .json \; 2>/dev/null \
+        | grep -vx '_orchestrator' \
+        | jq -Rsc 'split("\n") | map(select(length > 0)) | unique')"
+    [[ -z "${expected_json}" ]] && expected_json="[]"
+
+    # Received = workers with a prior completion_log entry for this phase, plus the trigger.
+    local received_json
+    received_json="$(jq -c --arg p "${phase}" --arg w "${worker}" \
+        '[((.completion_log // [])[] | select(.phase == $p and .worker != null) | .worker)] + (if $w == "" then [] else [$w] end) | unique' \
+        "${orch_state}")"
+
+    # Missing = expected - received.
+    local missing_json
+    missing_json="$(jq -cn --argjson exp "${expected_json}" --argjson rec "${received_json}" '($exp - $rec) | sort')"
+
+    local missing_count outcome
+    missing_count="$(jq 'length' <<<"${missing_json}")"
+    if [[ "${missing_count}" -eq 0 ]]; then
+        outcome="complete"
+    else
+        outcome="incomplete"
+    fi
+
     local now
     now="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
@@ -258,8 +301,11 @@ _dispatch_append_completion_log() {
     entry="$(jq -cn \
         --arg evaluated_at      "${now}" \
         --arg trigger_msg_type  "phase-complete" \
-        --arg outcome           "logged" \
-        '{evaluated_at: $evaluated_at, trigger_msg_type: $trigger_msg_type, outcome: $outcome, missing_workers: [], missing_signals: []}'
+        --arg worker            "${worker}" \
+        --arg phase             "${phase}" \
+        --arg outcome           "${outcome}" \
+        --argjson missing       "${missing_json}" \
+        '{evaluated_at: $evaluated_at, trigger_msg_type: $trigger_msg_type, worker: $worker, phase: $phase, outcome: $outcome, missing_workers: $missing, missing_signals: []}'
     )"
 
     state_update_field "${orch_state}" \

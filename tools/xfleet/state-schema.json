@@ -141,6 +141,14 @@
                 "type": "string",
                 "description": "Inbound message type that triggered the evaluation (e.g. phase-complete)."
               },
+              "worker": {
+                "type": "string",
+                "description": "Short-name of the worker whose phase-complete triggered this evaluation."
+              },
+              "phase": {
+                "type": "string",
+                "description": "Phase the evaluation was computed for (from the triggering phase-complete message)."
+              },
               "outcome": {
                 "type": "string",
                 "description": "Result of the evaluation (e.g. complete, incomplete)."

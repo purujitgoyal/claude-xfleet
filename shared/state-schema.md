@@ -154,6 +154,8 @@ edit by hand — run `tools/xfleet/gen-state-schema-doc.sh` to regenerate.
 | `completion_log` | array<object> | no | Append-only log of phase-completion evaluations, recording which workers/signals were still missing at each check. |
 | `completion_log[].evaluated_at` | string | yes | ISO-8601 timestamp of the evaluation. |
 | `completion_log[].trigger_msg_type` | string | yes | Inbound message type that triggered the evaluation (e.g. phase-complete). |
+| `completion_log[].worker` | string | no | Short-name of the worker whose phase-complete triggered this evaluation. |
+| `completion_log[].phase` | string | no | Phase the evaluation was computed for (from the triggering phase-complete message). |
 | `completion_log[].outcome` | string | yes | Result of the evaluation (e.g. complete, incomplete). |
 | `completion_log[].missing_workers` | array<string> | yes | Worker short-names that had not yet reported for the phase. |
 | `completion_log[].missing_signals` | array<string> | yes | Signal names still outstanding for the phase. |

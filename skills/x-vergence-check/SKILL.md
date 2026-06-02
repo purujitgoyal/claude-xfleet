@@ -21,6 +21,9 @@ Workers gather evidence before signaling integration-ready (see the
 review side: the orchestrator dispatches it after all workers are integration-ready
 and deterministic T1 + T2 evidence is in hand.
 
+**Design principles:** see `shared/design-principles.md` — loaded whenever this
+skill runs (F-35 skills-as-source-of-truth, F-36 autonomous execution).
+
 ## Inputs
 
 The dispatching orchestrator supplies:

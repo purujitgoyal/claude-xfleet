@@ -21,10 +21,10 @@ There are three structural categories:
 
 | Category | Examples | Notes |
 |----------|----------|-------|
-| **Content-carrying** | `directive`, `task`, `concern`, `concern-reopen`, `resolution`, `question`, `answer`, `review`, `escalation`, `phase-complete` | Each carries exactly one of `--message` / `--message-file` (section d). |
+| **Content-carrying** | `directive`, `task`, `concern`, `concern-reopen`, `resolution`, `question`, `answer`, `escalation`, `phase-complete` | Each carries exactly one of `--message` / `--message-file` (section d). `escalation` carries content only for urgent reasons; `judgment-finding` is alert-only. |
 | **State-mutating** | `engage`, `disengage`, `phase` | Mutate state files (`_orchestrator.json`, session-local `current_phase`). |
 | **Read-only / session-local** | `status`, `peek`, `listen`, `ack`, `resume`, `continue` | No authority enforcement; auto-allowed. |
-| **Signal-only** | `integration-ready` | Worker→orch signal; no `--message`, no rounds, no response expected. `--ip` required. |
+| **Signal-only** | `integration-ready`, `review` | Worker→orch signals; no `--message` body, no rounds, no response. `integration-ready` requires `--ip`; `review` carries `--path` to the review file + optional `--finding` (alert-not-content). |
 
 Type is determined by the subcommand — never by a `--type` flag.
 
@@ -190,14 +190,14 @@ invoking the subcommand triggers reflexive auto-handler emissions (section f).
 | `resolution` | worker only | peer-worker | exactly one of `--message` / `--message-file` | yes (resolution-ack to peer + resolution-summary to orch) |
 | `directive` | orchestrator only | worker | exactly one of `--message` / `--message-file` | yes (directive-ack + directive-response) |
 | `task` | orchestrator only | worker | exactly one of `--message` / `--message-file` | yes (task-response) |
-| `escalation` | worker only | orchestrator (`escalation orchestrator`) | exactly one of `--message` / `--message-file`; routed by `--reason` (section c) | yes (escalation-response) |
+| `escalation` | worker only | orchestrator (`escalation orchestrator`) | urgent reasons carry one of `--message` / `--message-file`; `judgment-finding` is alert-only (no body); routed by `--reason` (section c) | yes (escalation-response) |
 | `phase` | self-session | — | none (`--enter` / `--complete`) | no |
 | `engage` | any session | — | none | no |
 | `disengage` | any session | — | none | no |
 | `resume` | any (read-only) | — | none | no |
 | `continue` | any (read-only) | — | none | no |
 | `phase-complete` | worker only | orchestrator | exactly one of `--message` / `--message-file` | no |
-| `review` | worker only | orchestrator | exactly one of `--message` / `--message-file` | no |
+| `review` | worker only | orchestrator | `--path` to review file + optional `--finding` (alert-not-content; no message body) | no |
 | `drift-check` | worker only | — | none | no |
 | `checklist` | orchestrator (in finalize-spec) | — | none | no |
 | `integration-ready` | worker only | orchestrator | none (`--ip` required) | no |

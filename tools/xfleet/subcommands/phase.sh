@@ -191,6 +191,9 @@ if [[ "${ROLE}" == "worker" ]]; then
         CUR_PHASE="$(printf '%s' "${CURRENT_STATE}" | jq -r '.current_phase // empty')"
         CUR_PHASE="${CUR_PHASE:-idle}"
 
+        # C1: count carried-forward session_scratch entries (advisory only).
+        SCRATCH_COUNT="$(printf '%s' "${CURRENT_STATE}" | jq -r '(.session_scratch // {}) | length' 2>/dev/null || echo 0)"
+
         # If leaving a real phase that is not idle and not the same as the target:
         # signal compact and write a phase-exit handoff (no message arg → template placeholder).
         if [[ "${CUR_PHASE}" != "idle" && "${CUR_PHASE}" != "${NEW_PHASE}" ]]; then
@@ -215,6 +218,9 @@ if [[ "${ROLE}" == "worker" ]]; then
         if [[ -n "${REVIEW_INTENSITY}" ]]; then
             # review_intensity is NOT a stored state field; print as an override note only.
             printf 'phase: review-intensity override: %s\n' "${REVIEW_INTENSITY}"
+        fi
+        if [[ "${SCRATCH_COUNT}" =~ ^[0-9]+$ ]] && (( SCRATCH_COUNT > 0 )); then
+            printf 'phase: note: session_scratch holds %s item(s). It is session-scoped and cleared at session teardown (phase-cleanup); promote anything durable to an artifact (spec Decisions Log, backlog, or a doc) before then.\n' "${SCRATCH_COUNT}"
         fi
         exit 0
     fi

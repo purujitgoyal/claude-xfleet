@@ -20,33 +20,9 @@ if [[ -z "$TRANSCRIPT" || ! -f "$TRANSCRIPT" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Compute PCT
-# ---------------------------------------------------------------------------
-LIMIT="${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-200000}"
-
-LAST_USAGE="$(jq -c 'select(.message.usage != null) | .message.usage' "$TRANSCRIPT" 2>/dev/null | tail -1 || true)"
-if [[ -z "$LAST_USAGE" ]]; then
-  # Fallback to top-level .usage
-  LAST_USAGE="$(jq -c 'select(.usage != null) | .usage' "$TRANSCRIPT" 2>/dev/null | tail -1 || true)"
-fi
-
-if [[ -z "$LAST_USAGE" ]]; then
-  exit 0
-fi
-
-INPUT="$(printf '%s' "$LAST_USAGE" | jq '.input_tokens // 0' 2>/dev/null || echo 0)"
-CR="$(printf '%s' "$LAST_USAGE" | jq '.cache_read_input_tokens // 0' 2>/dev/null || echo 0)"
-CC="$(printf '%s' "$LAST_USAGE" | jq '.cache_creation_input_tokens // 0' 2>/dev/null || echo 0)"
-TOKENS=$(( INPUT + CR + CC ))
-
-if (( LIMIT <= 0 )); then
-  exit 0
-fi
-
-PCT=$(( TOKENS * 100 / LIMIT ))
-
-# ---------------------------------------------------------------------------
-# 3. Resolve current_phase + thresholds
+# 2. Resolve current_phase + thresholds (cheap: one state field + skill metadata)
+#    Done BEFORE the transcript read so the below-warn throttle (section 2b)
+#    can short-circuit without paying for the jsonl scan.
 # ---------------------------------------------------------------------------
 COORD="${XFLEET_COORDINATION_ROOT:-}"
 WORKER="${XFLEET_WORKER_NAME:-}"
@@ -77,6 +53,61 @@ if [[ -n "$CURRENT_PHASE" ]]; then
     [[ -n "$CRIT_PARSED" ]] && CRIT="$CRIT_PARSED"
   fi
 fi
+
+# ---------------------------------------------------------------------------
+# 2b. Below-warn throttle (cluster 4j). The hook fires on every Agent/Read/
+#     Grep/Serena call; below warn nothing actionable changes call-to-call, so
+#     skip the transcript scan if we checked within THROTTLE_SECONDS AND the
+#     last known usage was below warn. At/above warn we never throttle, keeping
+#     emission + debounce responsive. Disabled by setting the env var to 0.
+# ---------------------------------------------------------------------------
+THROTTLE_SECONDS="${XFLEET_CONTEXT_CHECK_THROTTLE_SECONDS:-30}"
+
+_epoch_of() {
+  # ISO-8601 UTC (…Z) → epoch seconds; prints 0 on parse failure.
+  local ts="$1"
+  date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null \
+    || date -u -d "$ts" +%s 2>/dev/null \
+    || echo 0
+}
+
+if [[ -n "$WORKER_STATE" && "$THROTTLE_SECONDS" -gt 0 ]]; then
+  LAST_CHECK="$(jq -r '.last_check_at // empty' "$WORKER_STATE" 2>/dev/null || true)"
+  PREV_PCT="$(jq -r '.context_pct // empty' "$WORKER_STATE" 2>/dev/null || true)"
+  if [[ -n "$LAST_CHECK" && "$PREV_PCT" =~ ^[0-9]+$ ]] && (( PREV_PCT < WARN )); then
+    LAST_EPOCH="$(_epoch_of "$LAST_CHECK")"
+    NOW_EPOCH="$(date -u +%s)"
+    if (( LAST_EPOCH > 0 && NOW_EPOCH - LAST_EPOCH < THROTTLE_SECONDS )); then
+      exit 0
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Compute PCT (reads the transcript jsonl — the expensive step)
+# ---------------------------------------------------------------------------
+LIMIT="${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-200000}"
+
+LAST_USAGE="$(jq -c 'select(.message.usage != null) | .message.usage' "$TRANSCRIPT" 2>/dev/null | tail -1 || true)"
+if [[ -z "$LAST_USAGE" ]]; then
+  # Fallback to top-level .usage
+  LAST_USAGE="$(jq -c 'select(.usage != null) | .usage' "$TRANSCRIPT" 2>/dev/null | tail -1 || true)"
+fi
+
+if [[ -z "$LAST_USAGE" ]]; then
+  exit 0
+fi
+
+INPUT="$(printf '%s' "$LAST_USAGE" | jq '.input_tokens // 0' 2>/dev/null || echo 0)"
+CR="$(printf '%s' "$LAST_USAGE" | jq '.cache_read_input_tokens // 0' 2>/dev/null || echo 0)"
+CC="$(printf '%s' "$LAST_USAGE" | jq '.cache_creation_input_tokens // 0' 2>/dev/null || echo 0)"
+TOKENS=$(( INPUT + CR + CC ))
+
+if (( LIMIT <= 0 )); then
+  exit 0
+fi
+
+PCT=$(( TOKENS * 100 / LIMIT ))
 
 # ---------------------------------------------------------------------------
 # 4. Determine level

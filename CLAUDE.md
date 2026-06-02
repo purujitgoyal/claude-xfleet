@@ -6,6 +6,10 @@ Guidance for Claude Code when working in the **xfleet plugin repo** — the plug
 
 xfleet is a Claude Code plugin for multi-repo coordination over Redis Streams. This repo is the plugin source: a `bin/xfleet` CLI dispatcher, supporting shell tooling, skills, hooks, and the canonical contract docs in `shared/`.
 
+## Companion skills (external)
+
+xfleet references skills it does **not** bundle — `prd-review`, `architect-review`, `capture-decision`, `prepare-handoff`, `resume-handoff`, `code-review`. These live in the separate **holocron** plugin (git repo `claude-holocron`; invoke as `/holocron:<skill>`), which is now their single source of truth — they were formerly loose under `~/.claude/skills/`. Don't vendor copies into this repo; reference them by name and keep the source in holocron.
+
 ## Commands
 
 - **Run tests:** `bash tests/run-all.sh` (what CI runs). Direct alternative: `bats tests/ -r`. 400+ bats tests span CLI, subcommands, handlers, hooks, state-validator, docs, manifest, and integration.

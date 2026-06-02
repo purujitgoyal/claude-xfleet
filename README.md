@@ -11,6 +11,7 @@ xfleet solves the "N repos, N Claude sessions" problem: when a task spans multip
 - **Redis** — transport layer for inter-session messaging. Default URL: `redis://127.0.0.1:6379`. Override via `$XFLEET_REDIS_URL`.
 - **Python 3 + jsonschema** (>=4) — used by `validate-state.sh` on every state-mutating subcommand to enforce schema correctness. Override interpreter via `$XFLEET_PYTHON`.
 - **Coordination root** — a `.xfleet/` directory tree in the repo under coordination. Declare its path via `$XFLEET_COORDINATION_ROOT`. This env var must be set for any plugin subcommand to work.
+- **Companion skills (recommended)** — xfleet references several skills it does not bundle: `prd-review`, `architect-review`, `capture-decision`, `prepare-handoff`, `resume-handoff`, and `code-review`. These are provided by the separate **holocron** plugin (marketplace `claude-holocron`), invokable as `/holocron:<skill>`. Install holocron alongside xfleet for the full review/handoff workflow; xfleet's core coordination commands work without it.
 
 ## Install
 

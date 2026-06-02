@@ -1,14 +1,14 @@
 # prd-review Integration Smoke Test (Task 14)
 
-Manual smoke test for the two Task-14 extensions to the **personal global**
-`prd-review` skill ecosystem. These changes live outside the plugin repo
-(`~/.claude/skills/prd-review/SKILL.md` and
-`~/.claude/agents/prd-boundaries-reviewer.md`), so they cannot be covered by
-the plugin's BATS suite. A human runs the steps below against a sample wave.
+Manual smoke test for the two Task-14 extensions to the `prd-review` skill
+ecosystem. These skills live outside the plugin repo, in the **holocron**
+plugin (git repo `claude-holocron`: `skills/prd-review/SKILL.md` and
+`agents/prd-boundaries-reviewer.md`), so they cannot be covered by the
+plugin's BATS suite. A human runs the steps below against a sample wave.
 
-> **General vs xfleet.** `prd-review` is now a general skill (risk +
+> **General vs xfleet.** `prd-review` is a general skill (risk +
 > boundaries + adversarial) with an xfleet sidecar
-> (`~/.claude/skills/prd-review/xfleet.md`) that adds the Distributability
+> (`claude-holocron/skills/prd-review/xfleet.md`) that adds the Distributability
 > dimension and a fixed `~/merlin-ai/docs/superpowers/reviews/` findings
 > location. Both features below — the prior-decisions block and asymmetry
 > detection — are **general** behavior; this test exercises a plain
@@ -38,10 +38,10 @@ the plugin's BATS suite. A human runs the steps below against a sample wave.
 
 ## Preconditions
 
-- `~/.claude/skills/prd-review/SKILL.md` contains a `## Step 2.5: Assemble
+- `claude-holocron/skills/prd-review/SKILL.md` contains a `## Step 2.5: Assemble
   Prior-Decisions Context` section, and Step 3's per-agent inputs list
   `prior_decisions`.
-- `~/.claude/agents/prd-boundaries-reviewer.md` contains a Check 5
+- `claude-holocron/agents/prd-boundaries-reviewer.md` contains a Check 5
   (`### 5. Asymmetry Detection`) with the four narrowing-language triggers
   and JUDGMENT tagging.
 - A sample cross-repo PRD you can run `/prd-review` against. If you don't

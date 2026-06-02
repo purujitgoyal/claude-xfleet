@@ -21,13 +21,13 @@ xfleet solves the "N repos, N Claude sessions" problem: when a task spans multip
 
 See [INSTALL.md](INSTALL.md) for full install steps and prerequisites.
 
-Then run the setup script to verify connectivity and initialize the coordination root:
+Then initialize a coordination root (one-time, idempotent):
 
 ```
-xfleet-setup.sh <path-to-coordination-root>
+bash <plugin-root>/tools/xfleet/install/setup-coordination-root.sh [<coordination-root-path>]
 ```
 
-> **Note:** `xfleet-setup.sh` is not yet shipped (created in Task 31 of the F-51 implementation plan). The setup script checks Redis reachability (`redis-cli ping`) and exports `$XFLEET_COORDINATION_ROOT` to `~/.config/xfleet/config.json` for session discovery.
+This creates the `.xfleet/` tree, adds it to `.gitignore`, verifies Redis is reachable, resolves a Python interpreter with the required libraries, persists config to `~/.config/xfleet/config.json`, and grants the path-scoped Claude Code permissions. See [SETUP.md](SETUP.md) for full details.
 
 ## Configuration
 
@@ -39,7 +39,7 @@ xfleet-setup.sh <path-to-coordination-root>
 
 ## Design Rationale
 
-Design rationale and architectural decisions are tracked in the project's internal design docs.
+The locked design decisions (clusters 4a–4o, 5, A1–A3; findings F-1…F-61) are recorded in [`docs/design/2026-04-20-xfleet-shakedown-findings.md`](docs/design/2026-04-20-xfleet-shakedown-findings.md).
 
 ## Versioning
 

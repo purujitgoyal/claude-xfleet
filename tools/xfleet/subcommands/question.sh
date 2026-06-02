@@ -31,7 +31,7 @@ source "${_QUESTION_DIR}/../lib/listener.sh"
 # ---------------------------------------------------------------------------
 # Role check — worker only
 # ---------------------------------------------------------------------------
-assert_role worker
+assert_role worker "questions are worker-originated (to orch or a peer-worker); from an orchestrator session use 'directive' to clarify scope instead."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

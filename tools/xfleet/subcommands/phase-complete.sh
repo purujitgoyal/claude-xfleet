@@ -46,7 +46,7 @@ source "${_PHASE_COMPLETE_DIR}/../lib/compact-dispatcher.sh"
 # ---------------------------------------------------------------------------
 # Role check — worker only
 # ---------------------------------------------------------------------------
-assert_role worker
+assert_role worker "workers signal phase-complete to the orchestrator; from an orchestrator session use 'phase --complete --phase <P>' to emit the gated signal instead."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

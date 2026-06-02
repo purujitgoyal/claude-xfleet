@@ -54,7 +54,7 @@ source "${_ESCALATION_DIR}/../lib/listener.sh"
 # ---------------------------------------------------------------------------
 # Role check — worker only (messaging.md b)
 # ---------------------------------------------------------------------------
-assert_role worker
+assert_role worker "escalations are raised by a worker to the orchestrator; an orchestrator has nothing to escalate to itself — use 'directive' to act on it instead."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

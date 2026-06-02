@@ -34,7 +34,7 @@ source "${_CONCERN_DIR}/../lib/listener.sh"
 # ---------------------------------------------------------------------------
 # Role check — worker only (messaging.md b)
 # ---------------------------------------------------------------------------
-assert_role worker
+assert_role worker "concerns are peer-to-peer (worker to peer-worker); from an orchestrator session use 'directive' instead."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

@@ -28,7 +28,7 @@ source "${_INTEGRATION_READY_DIR}/../lib/sender-authority.sh"
 # ---------------------------------------------------------------------------
 # Role check — worker only
 # ---------------------------------------------------------------------------
-assert_role worker
+assert_role worker "integration-ready is a worker signal that a repo's IP-anchored epics are done; the orchestrator fires verification on receipt, it does not signal."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

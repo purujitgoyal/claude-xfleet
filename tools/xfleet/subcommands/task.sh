@@ -41,7 +41,7 @@ source "${_TASK_DIR}/../lib/state-io.sh"
 # ---------------------------------------------------------------------------
 # Role check — orchestrator only (messaging.md b)
 # ---------------------------------------------------------------------------
-assert_role orchestrator
+assert_role orchestrator "tasks are orchestrator-originated procedural work (orch to worker); from a worker session use 'concern' or 'question' instead."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

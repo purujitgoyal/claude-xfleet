@@ -47,7 +47,7 @@ source "${_DIRECTIVE_DIR}/../lib/state-io.sh"
 # ---------------------------------------------------------------------------
 # Role check — orchestrator only (messaging.md b)
 # ---------------------------------------------------------------------------
-assert_role orchestrator
+assert_role orchestrator "directives are orchestrator-originated (orch to worker); from a worker session raise a 'concern' (or 'question') instead."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

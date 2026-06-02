@@ -36,7 +36,7 @@ source "${_RESOLUTION_DIR}/../lib/listener.sh"
 # ---------------------------------------------------------------------------
 # Role check — worker only (messaging.md b)
 # ---------------------------------------------------------------------------
-assert_role worker
+assert_role worker "resolutions are sent worker-to-peer-worker to close a concern; from an orchestrator session use 'directive' instead."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

@@ -32,7 +32,7 @@ source "${_REVIEW_DIR}/../lib/state-io.sh"
 # ---------------------------------------------------------------------------
 # Role check — worker only (messaging.md b)
 # ---------------------------------------------------------------------------
-assert_role worker
+assert_role worker "reviews are worker-originated (to orch); orchestrators never originate reviews (F-1/F-2) — from an orchestrator use 'directive' to request work instead."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

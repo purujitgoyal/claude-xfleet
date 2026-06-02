@@ -30,7 +30,7 @@ source "${_DRIFT_CHECK_DIR}/../lib/state-io.sh"
 # ---------------------------------------------------------------------------
 # Role check — worker only
 # ---------------------------------------------------------------------------
-assert_role worker
+assert_role worker "drift-check runs in a worker repo session against that repo's code; the orchestrator never reads repo code directly (cluster 4h)."
 
 # ---------------------------------------------------------------------------
 # Arg parsing

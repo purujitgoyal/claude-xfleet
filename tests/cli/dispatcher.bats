@@ -23,7 +23,7 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [ -n "$output" ]
 }
 
-@test "(a) xfleet --help lists all 22 subcommands" {
+@test "(a) xfleet --help lists all 24 subcommands" {
     run "${XFLEET}" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"status"* ]]
@@ -48,6 +48,8 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [[ "$output" == *"drift-check"* ]]
     [[ "$output" == *"checklist"* ]]
     [[ "$output" == *"integration-ready"* ]]
+    [[ "$output" == *"ask"* ]]
+    [[ "$output" == *"await"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -240,6 +242,21 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     # integration-ready requires XFLEET_ROLE=worker and --ip; bare invocation
     # exits 1 with a role or usage error, NOT the dispatcher's "Unknown subcommand".
     run --separate-stderr "${XFLEET}" integration-ready
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
+}
+
+@test "(c) xfleet ask routes to handler (not unknown subcommand)" {
+    # ask requires a <responder> arg; bare invocation emits usage to stderr.
+    run --separate-stderr "${XFLEET}" ask
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
+}
+
+@test "(c) xfleet await routes to handler (not unknown subcommand)" {
+    # NEVER invoke await bare here — it parks (blocks) indefinitely. An unknown
+    # flag exits 1 from arg parsing before any Redis call, proving routing.
+    run --separate-stderr "${XFLEET}" await --bogus-flag
     [ "$status" -ne 0 ]
     [[ "${stderr}" != *"Unknown subcommand"* ]]
 }

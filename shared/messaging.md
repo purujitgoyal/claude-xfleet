@@ -28,6 +28,10 @@ There are three structural categories:
 
 Type is determined by the subcommand — never by a `--type` flag.
 
+A fourth, orthogonal group is **exploration mode** (`ask`, `await`): orchestrator-less,
+peer-to-peer Q/A between an active session and parked read-only responders. See
+section (i).
+
 **Role detection.** Each session's role (orchestrator vs worker) is resolved
 **role-based**: inferred via state-file ownership or the `XFLEET_ROLE` env var
 exported at skill-load time. The exact mechanism is finalized in Phase B; validators
@@ -59,6 +63,8 @@ Verbatim mapping (A3). "Sender" = which session role may originate the subcomman
 | `engage` | **any session** | — | Writes `_orchestrator.json:human_engaged`. |
 | `disengage` | **any session** | — | Writes `_orchestrator.json:human_engaged`. |
 | `phase` | **self-session** | — | `phase --enter` / `phase --complete`; each session manages its own `current_phase`. Orch's call also gates emissions (cluster 4a). |
+| `ask` | **any session** (self-bootstraps worker identity; exploration mode, section i) | explore responder | No role assertion — zero-setup by design. |
+| `await` | **responder self-session** (exploration mode, section i) | — | Blocks on own inbox; no authority enforcement. |
 | `status` | any (read-only) | — | No authority enforcement. |
 | `peek` | any (read-only) | — | No authority enforcement. |
 | `listen` | any (read-only) | — | No authority enforcement. |
@@ -171,7 +177,7 @@ never collide on counter keys.
 ## (h) Subcommand table  <!-- SECTION-H-SUBCOMMAND-TABLE -->
 
 Canonical 5-column reference. Contains a row for **every** name in
-`tools/xfleet/lib/subcommand-registry.sh` (`XFLEET_SUBCOMMANDS`, exactly 22) and
+`tools/xfleet/lib/subcommand-registry.sh` (`XFLEET_SUBCOMMANDS`, exactly 24) and
 **only** those names. Reflexive handlers (section f) are intentionally excluded.
 The consistency test (`tests/docs/messaging-consistency.bats`) asserts this table
 and the registry stay in lockstep. The **emits reflexive?** column records whether
@@ -201,3 +207,44 @@ invoking the subcommand triggers reflexive auto-handler emissions (section f).
 | `drift-check` | worker only | — | none | no |
 | `checklist` | orchestrator (in finalize-spec) | — | none | no |
 | `integration-ready` | worker only | orchestrator | none (`--ip` required) | no |
+| `ask` | any session (exploration mode, section i) | explore responder | exactly one of `--message` / `--message-file` (`--message-file` requires a coordination root per SC-5) | no |
+| `await` | responder self-session (exploration mode, section i) | — | none (`--name` / `--timeout` / `--unpark`) | no |
+
+---
+
+## (i) Exploration mode (`ask` / `await`)
+
+Orchestrator-less, peer-to-peer Q/A. An active session asks a question about a
+peer repo; a **parked, read-only responder** session in that repo answers using
+its own tools. Design rationale lives in
+`docs/superpowers/specs/2026-06-10-xfleet-explore-mode-design.md`.
+
+**Semantics (all deliberate omissions):** no orchestrator, no rounds, no
+reflexive emissions, no coordination root, no state files, no roster. The wire
+types are the existing `question` / `answer`; only the transport conventions
+below are new.
+
+- **Identity is self-bootstrapped.** Both sides default their name to
+  `$XFLEET_WORKER_NAME`, else `basename "$PWD"`. `ask` performs no
+  `assert_role` — exploration mode is zero-setup.
+- **`reply_to` field.** `ask`'s question message carries
+  `reply_to: <asker-name>` in addition to the standard fields, because `from`
+  carries the role string (`"worker"`), not a name. The responder answers via
+  plain `xfleet answer <reply_to> --message "..."`.
+- **Presence keys.** A parked responder maintains
+  `xfleet:explore:presence:{name}` (value: JSON with `repo` + `parked_at`,
+  TTL 900s, refreshed each `await` cycle). `xfleet ask --list` scans this
+  prefix; `xfleet await --unpark` deletes the key.
+- **Consumer group.** `await` reads `inbox:{name}` via group `explore`
+  (never `worker`), keeping explore delivery position separate from any
+  orchestrated listener. `ask`'s blocking wait uses plain `XREAD`
+  (non-consuming) on the asker's own inbox, from the pre-send high-water mark.
+- **Read-only is behavioral.** Responders refuse mutation requests by
+  convention (see the `/xfleet:explore` skill); the wire layer does not
+  enforce it.
+
+**Limitations (documented, not engineered around):** do not park a responder
+under the same name as an active coordination-session worker (shared
+`inbox:{name}` stream); one shared Redis means one shared presence namespace;
+no question/answer correlation IDs in v1 (one question in flight per asker —
+the next `answer` after the send wins).

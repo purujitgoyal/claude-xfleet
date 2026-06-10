@@ -18,10 +18,10 @@ xfleet references skills it does **not** bundle — `prd-review`, `architect-rev
 
 ## Layout
 
-- `bin/xfleet` — dispatcher; routes to `tools/xfleet/subcommands/` (21 subcommands) via `tools/xfleet/lib/subcommand-registry.sh`.
+- `bin/xfleet` — dispatcher; routes to `tools/xfleet/subcommands/` (24 subcommands) via `tools/xfleet/lib/subcommand-registry.sh`.
 - `tools/xfleet/` — `subcommands/`, `handlers/` (reflexive inbound handlers), `lib/` (shared bash + `validate-state.py`), `hooks/load-grounding.sh`, `check-context.sh`, `validate-state.sh`, `state-schema.json`.
 - `shared/` — canonical contracts: `messaging.md` (wire taxonomy), `state-schema.md` (prose) + `state-schema.json` (validator), `worker-config-schema.md`, `design-principles.md`, `cluster-5-templates.md`.
-- `skills/` — `worker`, `orchestrator`, five `phase-*`, `finalize-spec`, `finalize-section`, `x-vergence-check`.
+- `skills/` — `worker`, `orchestrator`, `explore` (orchestrator-less responder), five `phase-*`, `finalize-spec`, `finalize-section`, `x-vergence-check`.
 - `hooks/hooks.json` — PostToolUse context-check + SessionStart grounding loader.
 - `commands/`, `.claude-plugin/` (`plugin.json` + `marketplace.json`), `tests/`.
 

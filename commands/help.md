@@ -61,6 +61,12 @@ Run `xfleet --help` or `xfleet <subcommand> --help` for argument details.
 |------------|---------|
 | `review` | Request or submit a review for the current work product |
 
+### Exploration mode (orchestrator-less)
+| Subcommand | Purpose |
+|------------|---------|
+| `ask` | Send a question to a parked explore responder and block for the answer (`--async` to skip the wait, `--list` to show parked responders) |
+| `await` | Park as an explore responder: block until a question arrives, print it, exit (`--unpark` to clear presence) |
+
 ## Taxonomy and sender authority
 
 For the full message taxonomy, sender-authority rules, and field definitions, see `shared/messaging.md` in the plugin root. The table above is a quick-reference only — messaging.md is the authoritative source.

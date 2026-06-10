@@ -130,8 +130,10 @@ source "${CLAUDE_PLUGIN_ROOT}/tools/xfleet/lib/dispatch.sh"
 while true; do
     PENDING="$(xfleet_redis XREADGROUP GROUP "${GROUP}" "${CONSUMER}" COUNT 1 STREAMS "${STREAM}" 0 2>/dev/null)" || true
     if [[ -n "${PENDING}" ]]; then
+        # wc -l counts newlines; command substitution strips trailing newline, so
+        # a 4-line redis-cli reply arrives as 3 newlines → wc -l = 3. Threshold is 3.
         line_count="$(printf '%s' "${PENDING}" | wc -l | tr -d ' ')"
-        if [[ "${line_count}" -ge 4 ]]; then
+        if [[ "${line_count}" -ge 3 ]]; then
             stream_id="$(printf '%s' "${PENDING}" | sed -n '2p')"
             data_value="$(printf '%s' "${PENDING}" | sed -n '4p')"
             enriched="$(printf '%s' "${data_value}" | jq --arg sid "${stream_id}" '. + {_stream_id: $sid}' 2>/dev/null)" || true
@@ -158,8 +160,9 @@ while true; do
         continue
     fi
     if [[ -n "${RESULT}" ]]; then
+        # Same threshold rationale as the pending-recovery branch above.
         line_count="$(printf '%s' "${RESULT}" | wc -l | tr -d ' ')"
-        if [[ "${line_count}" -ge 4 ]]; then
+        if [[ "${line_count}" -ge 3 ]]; then
             stream_id="$(printf '%s' "${RESULT}" | sed -n '2p')"
             data_value="$(printf '%s' "${RESULT}" | sed -n '4p')"
             enriched="$(printf '%s' "${data_value}" | jq --arg sid "${stream_id}" '. + {_stream_id: $sid}' 2>/dev/null)" || true

@@ -77,8 +77,10 @@ disciplines that must not be conflated (cluster 4g):
 
 Channel routing depends on **intent, not availability**. `question` targets the
 orchestrator OR a peer worker — **never** literal `"human"`. Use `xfleet concern
-peer` for peer negotiation where rounds matter (F-15), and `xfleet question peer`
-for ad-hoc clarification where they do not. Direct-to-human via the slack-channel
+<peer>` for peer negotiation where rounds matter (F-15), and `xfleet question
+<peer>` for ad-hoc clarification where they do not — where `<peer>` is the peer
+worker's name (the recipient is a positional arg, not a literal `peer` keyword).
+Direct-to-human via the slack-channel
 plugin is permitted **only** for breaking/deviation escalations, and **always
 paired** with the `xfleet escalation` message for the audit trail.
 

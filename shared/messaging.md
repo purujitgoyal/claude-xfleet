@@ -56,7 +56,7 @@ Verbatim mapping (A3). "Sender" = which session role may originate the subcomman
 | `resolution` | **worker only** | peer-worker | worker→worker; triggers closure handshake (section e). |
 | `question` | **worker only** | orchestrator OR peer-worker | NEVER literal `"human"` (cluster 4g #1). |
 | `review` | **worker only** | orchestrator | Orch never originates reviews (F-1 / F-2). |
-| `escalation` | **worker only** | orchestrator | `escalation orchestrator` form; routed by `--reason` (section c). |
+| `escalation` | **worker only** | orchestrator | `xfleet escalation --reason <reason>` (recipient always orchestrator — no positional); routed by `--reason` (section c). |
 | `phase-complete` | **worker only** | orchestrator | Recipient always orchestrator. |
 | `concern-reopen` | **orchestrator or worker** | peer-worker | Orch reopens after human review; worker reopens on new findings (peer-symmetry). Continues round counter. |
 | `answer` | **orchestrator or worker** | original questioner | Orch-as-sender is the rare directive-clarification path (kept open; observe before tightening). |
@@ -76,13 +76,13 @@ Verbatim mapping (A3). "Sender" = which session role may originate the subcomman
 
 ## (c) `--reason` enum + per-reason routing
 
-Single rule for `xfleet escalation orchestrator`, routed by `--reason` (A2). This
+Single rule for `xfleet escalation` (recipient always orchestrator), routed by `--reason` (A2). This
 table is the **single source of truth** for the Phase B escalation handler.
 **Unknown `--reason` values are rejected.**
 
 | `--reason` | Class | Routing |
 |------------|-------|---------|
-| `breaking` | urgent | Bypass batching; surface to human immediately. Worker-direct slack ping permitted, but **always** paired with the `xfleet escalation orchestrator` message for the audit trail. |
+| `breaking` | urgent | Bypass batching; surface to human immediately. Worker-direct slack ping permitted, but **always** paired with the `xfleet escalation` message for the audit trail. |
 | `plan-deviation` | urgent | Same as `breaking`: bypass batching, immediate human surface, paired slack-ping allowed + always paired with the escalation message. |
 | `judgment-finding` | non-urgent | **Batched.** Alert-only payload: finding count + review-path. **No content body.** |
 
@@ -196,7 +196,7 @@ invoking the subcommand triggers reflexive auto-handler emissions (section f).
 | `resolution` | worker only | peer-worker | exactly one of `--message` / `--message-file` | yes (resolution-ack to peer + resolution-summary to orch) |
 | `directive` | orchestrator only | worker | exactly one of `--message` / `--message-file` | yes (directive-ack + directive-response) |
 | `task` | orchestrator only | worker | exactly one of `--message` / `--message-file` | yes (task-response) |
-| `escalation` | worker only | orchestrator (`escalation orchestrator`) | urgent reasons carry one of `--message` / `--message-file`; `judgment-finding` is alert-only (no body); routed by `--reason` (section c) | yes (escalation-response) |
+| `escalation` | worker only | orchestrator (always; no positional) | urgent reasons carry one of `--message` / `--message-file`; `judgment-finding` is alert-only (no body); routed by `--reason` (section c) | yes (escalation-response) |
 | `phase` | self-session | — | none (`--enter` / `--complete`) | no |
 | `engage` | any session | — | none | no |
 | `disengage` | any session | — | none | no |

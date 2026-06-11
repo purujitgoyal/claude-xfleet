@@ -145,12 +145,13 @@ gate; never send a phase-advance signal without human approval.
 
 ## Escalation Handling
 
-`xfleet escalation orchestrator` is routed by `--reason` (A2; the enum +
-routing table in `shared/messaging.md` is the single source of truth):
+`xfleet escalation` (sent by a worker; recipient always orchestrator) is routed
+by `--reason` (A2; the enum + routing table in `shared/messaging.md` is the
+single source of truth):
 
 - **Urgent** (`breaking`, `plan-deviation`): **bypass batching**, surface to the
   human immediately. A worker-direct slack ping is permitted but is **always
-  paired** with the `xfleet escalation orchestrator` message for the audit trail
+  paired** with the `xfleet escalation` message for the audit trail
   (cluster 4g's non-negotiable slack-pair invariant — orch must know an
   escalation occurred even when the human was pinged directly).
 - **Non-urgent** (`judgment-finding`): **batched** per F-9 + cluster 4k.

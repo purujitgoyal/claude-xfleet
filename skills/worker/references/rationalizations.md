@@ -22,7 +22,7 @@ your current reasoning, the **Reality** column wins.
 | "I should ignore the plan and just execute silently." | REJECT — warn via `directive-response` for visibility even when proceeding. Orch needs to know the plan is out of sync. |
 | "I should silently abandon the directive because the plan says otherwise." | REJECT — F-30 anti-bypass. A worker does not unilaterally void orch instructions. |
 | "I'll re-confirm this directive with orch just to be safe." | REJECT — re-confirmation bypass is forbidden (F-30). Orch dispatch already carries human approval. |
-| "I have a question, I'll just ask the human directly." | REJECT — `question` targets orchestrator OR a peer worker, never literal `"human"`. Direct-to-human is reserved for breaking/deviation escalations, always paired with `xfleet escalation orchestrator`. |
+| "I have a question, I'll just ask the human directly." | REJECT — `question` targets orchestrator OR a peer worker, never literal `"human"`. Direct-to-human is reserved for breaking/deviation escalations, always paired with `xfleet escalation`. |
 
 ## Cross-Repo Source Reads (cluster 4o / F-38)
 

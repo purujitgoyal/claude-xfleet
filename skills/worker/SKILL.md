@@ -72,14 +72,15 @@ disciplines that must not be conflated (cluster 4g):
 - **(a) Anti-bypass (F-30):** workers do **not** bypass orch to re-confirm
   directives, nor silently void them. A directive carries human approval already.
 - **(b) Escalation (F-36):** workers **do** escalate genuine plan-deviations and
-  breaking errors fast, via `xfleet escalation orchestrator --reason <reason>`.
+  breaking errors fast, via `xfleet escalation --reason <reason>` (recipient is
+  always the orchestrator — no positional recipient is passed).
 
 Channel routing depends on **intent, not availability**. `question` targets the
 orchestrator OR a peer worker — **never** literal `"human"`. Use `xfleet concern
 peer` for peer negotiation where rounds matter (F-15), and `xfleet question peer`
 for ad-hoc clarification where they do not. Direct-to-human via the slack-channel
 plugin is permitted **only** for breaking/deviation escalations, and **always
-paired** with the `xfleet escalation orchestrator` message for the audit trail.
+paired** with the `xfleet escalation` message for the audit trail.
 
 ### Orch directive conflicting with the plan (C3 — trust + execute + warn)
 
@@ -91,11 +92,14 @@ means the **plan is stale**, not that the directive is wrong. Do not freeze.
 3. Classify severity:
    - **(a) breaking / irreversible / unsafe** (data loss, security exposure,
      cross-repo contract break, schema migration without rollback) → **freeze**;
-     emit `xfleet escalation orchestrator --reason breaking ... --priority urgent`;
-     do NOT execute D until orch responds.
+     emit `xfleet escalation --reason breaking --message "<details>"` (the reason
+     routes it as urgent — priority is derived, not passed); do NOT execute D
+     until orch responds.
    - **(b) plan-deviation only, non-breaking** (re-scoping, approach change,
-     ordering swap that keeps invariants) → emit `directive-response` noting the
-     conflict for visibility, then **proceed** to execute D.
+     ordering swap that keeps invariants) → emit `xfleet escalation --reason
+     plan-deviation --message "<conflict note>"` for visibility (the reflexive
+     directive-response only acks; this carries the conflict note), then
+     **proceed** to execute D.
 4. If orch sends a revision, comply with the latest signal.
 5. If no orch response within a reasonable window, continue executing D as-is.
 
@@ -112,7 +116,7 @@ The worker is the **sender** for these subcommands (full authority table in
 | `resolution` | peer-worker | Triggers closure handshake (resolution-ack to peer + resolution-summary to orch). |
 | `question` | orchestrator OR peer-worker | NEVER `"human"`. |
 | `review` | orchestrator | Orch never originates reviews. |
-| `escalation` | orchestrator | `escalation orchestrator`; routed by `--reason`. |
+| `escalation` | orchestrator | `xfleet escalation --reason <reason>`; recipient is always orchestrator (no positional). Routed by `--reason`. |
 | `phase-complete` | orchestrator | Recipient always orchestrator. |
 | `concern-reopen`, `answer` | peer-worker / questioner | Either orch or worker may send. |
 
@@ -144,7 +148,7 @@ At `critical` (≥ phase critical threshold) **stop phase-specific work immediat
    do NOT run prepare-handoff a second time.
 2. Update state: `status: "compacting"`, `context_pct: N`, `handoff_path`,
    `last_updated`.
-3. Send `xfleet escalation orchestrator` / status update noting compacting,
+3. Send `xfleet escalation --reason <reason>` / status update noting compacting,
    `context_pct`, and `handoff_path`.
 4. Minimal-activity mode: keep listening; answer always-on Q/A with a
    status-pointer ("compacting at {pct}%, see {handoff_path}, resume after

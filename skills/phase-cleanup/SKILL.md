@@ -169,23 +169,28 @@ rm -f "$XFLEET_COORDINATION_ROOT"/handoffs/*.md          # legacy non-repo-local
 
 ## Flush Redis Streams
 
-For each worker name extracted above, delete its inbox stream:
+For each worker name extracted above, delete its inbox stream. **Every
+`redis-cli` call here MUST target `$XFLEET_REDIS_URL`** (via `-u`) — the rest of
+xfleet routes all Redis through that URL, and a bare `redis-cli` would flush the
+default instance, not the session's configured one:
 
 ```bash
+REDIS="redis-cli -u ${XFLEET_REDIS_URL:-redis://127.0.0.1:6379}"
 for worker in "${WORKERS[@]}"; do
-  redis-cli DEL "inbox:${worker}"
+  $REDIS DEL "inbox:${worker}"
 done
-redis-cli DEL "inbox:orchestrator"
+$REDIS DEL "inbox:orchestrator"
 
 # Delete per-concern round counters (xfleet concern INCRs concern:{id}:rounds).
 # Idempotent: xargs -r is a no-op if no keys match.
-redis-cli --scan --pattern 'concern:*:rounds' | xargs -r redis-cli DEL >/dev/null
+$REDIS --scan --pattern 'concern:*:rounds' | xargs -r $REDIS DEL >/dev/null
 ```
 
-**DRY-RUN behavior:** do NOT issue `DEL` commands. Instead:
+**DRY-RUN behavior:** do NOT issue `DEL` commands. Instead (still using
+`$REDIS`, i.e. `redis-cli -u "$XFLEET_REDIS_URL"`):
 - For each worker, print `[dry-run] would flush stream: inbox:<worker>` along with its current `XLEN` (read-only).
 - Print `[dry-run] would flush stream: inbox:orchestrator` plus its `XLEN`.
-- Replace the `concern:*:rounds` DEL pipeline with scan-and-list only: `redis-cli --scan --pattern 'concern:*:rounds'` prefixed with `[dry-run] would delete key:` per match.
+- Replace the `concern:*:rounds` DEL pipeline with scan-and-list only: `$REDIS --scan --pattern 'concern:*:rounds'` prefixed with `[dry-run] would delete key:` per match.
 
 Do NOT remove `$XFLEET_COORDINATION_ROOT/specs/` or `$XFLEET_COORDINATION_ROOT/plans/` directories — these hold durable artifacts.
 

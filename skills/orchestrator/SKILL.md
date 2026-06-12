@@ -83,12 +83,14 @@ reality; a solo read would be stale or wrong and regresses F-1.
 - Grounding files loaded by the SessionStart hook (`{repo}/CLAUDE.md` +
   `{repo}/docs/superpowers/xfleet/{slug}/grounding.md`), injected as context.
 
-When you need repo detail, dispatch `xfleet question <worker>` or
-`xfleet task <worker>`. If you don't even know how to frame the question, ask the
-worker for the framing — "how should I ask about <topic> in your repo?" is itself
-a valid question — or consult the human. There is **no** PreToolUse block on
-Read/Grep here; this is cultural discipline + the Rationalizations table, the
-same audit-invariant pattern as cluster 4g's no-hooks-on-slack decision.
+When you need repo detail, dispatch `xfleet task <worker>` — the orch→worker
+investigative channel (it returns a `task-response`). `question` is **worker-only**
+(messaging.md b), so an orch session cannot originate one; `xfleet task` is how orch
+asks. If you don't even know how to frame the ask, send a `task` requesting the
+framing — "how should I ask about <topic> in your repo?" is itself a valid task — or
+consult the human. There is **no** PreToolUse block on Read/Grep here; this is
+cultural discipline + the Rationalizations table, the same audit-invariant pattern
+as cluster 4g's no-hooks-on-slack decision.
 
 Rationalizations-to-Reject: `references/rationalizations.md` → "Authority Hierarchy / Strict Delegation".
 

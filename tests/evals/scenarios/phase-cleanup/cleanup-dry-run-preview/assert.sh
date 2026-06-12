@@ -19,6 +19,9 @@ ROOT="${XFLEET_COORDINATION_ROOT}"
 [[ -f "${ROOT}/reviews/rv-1.md" ]];        eval_check $? "dry-run preserved reviews/rv-1.md"
 [[ -f "${ROOT}/state/${RESPONDER}.json" ]]; eval_check $? "dry-run preserved state/${RESPONDER}.json"
 
+# The session handoff under the roster repo's xfleet/{slug}/ dir must survive a dry run.
+[[ -f "${REPO_DIR}/docs/superpowers/xfleet/evalwave/handoff-implement.md" ]]; eval_check $? "dry-run preserved the repo-local handoff"
+
 # Redis streams + counter must all survive.
 [[ "$(eval_redis EXISTS "inbox:${RESPONDER}")" -eq 1 ]];   eval_check $? "dry-run did not flush inbox:${RESPONDER}"
 [[ "$(eval_redis EXISTS "inbox:orchestrator")" -eq 1 ]];   eval_check $? "dry-run did not flush inbox:orchestrator"

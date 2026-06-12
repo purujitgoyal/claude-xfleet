@@ -28,6 +28,17 @@ eval_write_worker_state "${ROOT}" "${RESPONDER}" "$(jq -cn \
     '{schema_version: "1", status: "idle", current_phase: "cleanup", current_task: null, last_updated: $now}'
 )"
 
+# Session roster (canonical repo-path source) + a real phase-exit handoff at
+# {repo}/docs/superpowers/xfleet/{slug}/handoff-*.md for the sweep to remove.
+SLUG="evalwave"
+jq -cn --arg repo "${REPO_DIR}" --arg slug "${SLUG}" \
+    '[{repo: $repo, slug: $slug}]' > "${ROOT}/roster.json"
+HANDOFF_DIR="${REPO_DIR}/docs/superpowers/xfleet/${SLUG}"
+mkdir -p "${HANDOFF_DIR}"
+printf '# handoff\nplaceholder\n' > "${HANDOFF_DIR}/handoff-implement.md"
+# A non-handoff sibling in the same dir must be LEFT untouched (selective sweep).
+printf '# section\nplaceholder\n' > "${HANDOFF_DIR}/section.md"
+
 eval_redis XADD "inbox:${RESPONDER}" "*" data '{"type":"question","content":"x"}' >/dev/null
 eval_redis XADD "inbox:orchestrator" "*" data '{"type":"review","content":"x"}'  >/dev/null
 eval_redis SET "concern:test-1:rounds" 3 >/dev/null

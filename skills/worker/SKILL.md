@@ -148,8 +148,11 @@ At `critical` (≥ phase critical threshold) **stop phase-specific work immediat
 
 1. `check-context` auto-chains into prepare-compact — capture its `handoff_path`;
    do NOT run prepare-handoff a second time.
-2. Update state: `status: "compacting"`, `context_pct: N`, `handoff_path`,
-   `last_updated`.
+2. Update state: `status: "compacting"`, `context_pct: N`, `last_updated`.
+   (Do NOT write `handoff_path` to state — it is not a state field; the resume
+   path derives the latest handoff from the most recent `handoff-{phase}.md` file
+   on disk, per `shared/state-schema.md`. A `handoff_path` write would be rejected
+   by the strict state validator.)
 3. Send `xfleet escalation --reason <reason>` / status update noting compacting,
    `context_pct`, and `handoff_path`.
 4. Minimal-activity mode: keep listening; answer always-on Q/A with a
@@ -194,8 +197,8 @@ background-task IDs; the message JSON lives only in the output files at
 
 **Recovery use case:** after `/clear` or `/compact`, list the files in the
 session's `tasks/` directory and read them to recover orchestrator/peer messages
-received before the reset. This is a secondary cross-check — the durable handoffs
-under `docs/superpowers/handoffs/` remain the primary recovery source.
+received before the reset. This is a secondary cross-check — the durable phase-exit
+handoffs under `docs/superpowers/xfleet/{slug}/` remain the primary recovery source.
 
 ## Boundary-First Presentation
 
@@ -232,7 +235,9 @@ On skill load, the worker reads its config and state, refreshes the peer roster
 from session state, and publishes initial state under `$XFLEET_COORDINATION_ROOT`.
 On resume (session reopened, with or without `/clear`), it reconstructs from the
 on-disk state + most recent handoff rather than re-initializing — it never re-runs
-prepare-handoff or resets `repo_path`/`status` on resume.
+prepare-handoff or resets `status` on resume. (Its repo path is its working
+directory, not a stored state field — see `state-schema.md`; repo paths for the
+fleet live in `roster.json`.)
 
 **Standby is a self-drive gate, not an inbox gate (F-58).** Standby suppresses
 **only** the auto-continue of dormant in-flight tasks. Orchestrator inbound is

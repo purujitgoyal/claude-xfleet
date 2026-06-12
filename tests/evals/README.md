@@ -36,9 +36,14 @@ produces correct behavior. Triggering accuracy is a separate eval set
 ## Run
 
 ```bash
-bash tests/evals/run-evals.sh                       # all explore scenarios
-bash tests/evals/run-evals.sh --scenario answer-question
+bash tests/evals/run-evals.sh                       # all explore scenarios (default skill)
+bash tests/evals/run-evals.sh --skill worker        # explore | worker | phase-cleanup | orchestrator
+bash tests/evals/run-evals.sh --skill orchestrator --scenario strict-delegation
 bash tests/evals/run-evals.sh --model claude-sonnet-4-6
 ```
+
+`run-evals.sh` sets `XFLEET_ROLE` per skill (`orchestrator` for the orchestrator
+skill, `worker` otherwise). Orchestrator scenarios pre-seed `_orchestrator.json`
+via `eval_write_orch_state` (subcommands hard-error if it is absent).
 
 Outputs land in `tests/evals/.work/<skill>/<scenario>/` (git-excluded).

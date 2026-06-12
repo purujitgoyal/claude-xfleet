@@ -82,10 +82,16 @@ for scn_dir in "${SCN_ROOT}"/*/; do
     [[ -f "${WORKSPACE}/prompt.txt" ]] || {
         printf 'setup did not write prompt.txt\n'; failed=$((failed + 1)); continue; }
 
-    # Mirror a parked responder session: role + name live in the environment so
-    # every Bash call inherits them (Claude Code shells don't persist exports).
-    # This is plumbing the unit tests already cover; the eval tests behavior.
-    export XFLEET_ROLE="worker" XFLEET_WORKER_NAME="${RESPONDER}"
+    # Mirror a parked session: role + name live in the environment so every Bash
+    # call inherits them (Claude Code shells don't persist exports). This is
+    # plumbing the unit tests already cover; the eval tests behavior. The
+    # orchestrator role hardcodes `from: orchestrator` in its subcommands, so
+    # XFLEET_WORKER_NAME is not load-bearing there.
+    if [[ "${SKILL}" == "orchestrator" ]]; then
+        export XFLEET_ROLE="orchestrator" XFLEET_WORKER_NAME="orchestrator"
+    else
+        export XFLEET_ROLE="worker" XFLEET_WORKER_NAME="${RESPONDER}"
+    fi
 
     # Run the skill headless, bounded.
     # No --dangerously-skip-permissions: the headless agent runs in a constrained

@@ -201,7 +201,7 @@ invoking the subcommand triggers reflexive auto-handler emissions (section f).
 | `engage` | any session | — | none | no |
 | `disengage` | any session | — | none | no |
 | `bootstrap` | **worker only** | — | none | no |
-| `session-init` | **orchestrator only** | — | — | Cold-start: resolves repo names→paths from the `~/.config/xfleet/config.json` `repos` registry and writes `roster.json` (`started_at` + `repos[]`). Orch owns the roster. |
+| `session-init` | **orchestrator only** | — | none | no |
 | `resume` | any (read-only) | — | none | no |
 | `continue` | any (read-only) | — | none | no |
 | `phase-complete` | worker only | orchestrator | exactly one of `--message` / `--message-file` | no |

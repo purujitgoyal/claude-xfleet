@@ -48,7 +48,7 @@ EOF
 # Minimal, bash-3.2-safe "did you mean" suggestion.
 # Ranks candidates by: longest common prefix with input (primary), then whether
 # one contains the other as a substring (tie-break), then shortest name.
-# With 19 fixed candidates (max len 14) this is plenty accurate.
+# With 26 fixed candidates (max len 17) this is plenty accurate.
 suggest_subcommand() {
     local input="$1"
     local best=""

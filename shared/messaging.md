@@ -177,7 +177,7 @@ never collide on counter keys.
 ## (h) Subcommand table  <!-- SECTION-H-SUBCOMMAND-TABLE -->
 
 Canonical 5-column reference. Contains a row for **every** name in
-`tools/xfleet/lib/subcommand-registry.sh` (`XFLEET_SUBCOMMANDS`, exactly 24) and
+`tools/xfleet/lib/subcommand-registry.sh` (`XFLEET_SUBCOMMANDS`, exactly 25) and
 **only** those names. Reflexive handlers (section f) are intentionally excluded.
 The consistency test (`tests/docs/messaging-consistency.bats`) asserts this table
 and the registry stay in lockstep. The **emits reflexive?** column records whether
@@ -200,6 +200,7 @@ invoking the subcommand triggers reflexive auto-handler emissions (section f).
 | `phase` | self-session | — | none (`--enter` / `--complete`) | no |
 | `engage` | any session | — | none | no |
 | `disengage` | any session | — | none | no |
+| `bootstrap` | **worker only** | — | none | no |
 | `resume` | any (read-only) | — | none | no |
 | `continue` | any (read-only) | — | none | no |
 | `phase-complete` | worker only | orchestrator | exactly one of `--message` / `--message-file` | no |

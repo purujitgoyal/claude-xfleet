@@ -11,7 +11,7 @@
 # does not mutate the caller's shell options. Entry points (bin/xfleet, the
 # subcommand stubs) own `set -euo pipefail`.
 
-# Canonical list of 24 user-facing subcommands.
+# Canonical list of 25 user-facing subcommands.
 # Reflexive auto-handler messages (directive-ack, task-response, etc.) are
 # internal and intentionally absent from this list.
 XFLEET_SUBCOMMANDS=(
@@ -30,6 +30,7 @@ XFLEET_SUBCOMMANDS=(
     phase
     engage
     disengage
+    bootstrap
     resume
     continue
     phase-complete

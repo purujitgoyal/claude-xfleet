@@ -84,9 +84,9 @@ extract_table_names() {
     [ -f "${REGISTRY}" ]
 }
 
-@test "registry exposes exactly 24 subcommands" {
+@test "registry exposes exactly 25 subcommands" {
     load_registry_names
-    [ "${#REGISTRY_NAMES[@]}" -eq 24 ]
+    [ "${#REGISTRY_NAMES[@]}" -eq 25 ]
 }
 
 @test "section (h) marker is present in messaging.md" {
@@ -94,11 +94,11 @@ extract_table_names() {
     [ "$status" -eq 0 ]
 }
 
-@test "section (h) table has exactly 24 data rows" {
+@test "section (h) table has exactly 25 data rows" {
     run extract_table_names
     [ "$status" -eq 0 ]
     count="$(printf '%s\n' "$output" | grep -c .)"
-    [ "$count" -eq 24 ]
+    [ "$count" -eq 25 ]
 }
 
 # ---------------------------------------------------------------------------

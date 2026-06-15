@@ -200,26 +200,28 @@ fi
 
 # ---------------------------------------------------------------------------
 # Load grounding for each repo
-# Roster schema: array of {"repo": "<path>", "slug": "<slug>"}
+# Roster schema: {"started_at": "<ISO>", "repos": [{"name", "path", "slug"}]}
 # ---------------------------------------------------------------------------
 
 # Guard: validate roster.json is parseable JSON before any indexing.
-if ! repo_count="$(jq 'length' "${ROSTER}" 2>/dev/null)"; then
+if ! jq empty "${ROSTER}" 2>/dev/null; then
     warn "roster.json at '${ROSTER}' is not valid JSON. No grounding context loaded."
     write_env_exports
     exit 0
 fi
 
-# Guard: roster.json must be a JSON array (not an object or scalar).
-if ! jq -e 'type == "array"' "${ROSTER}" > /dev/null 2>&1; then
-    warn "roster.json at '${ROSTER}' is not a JSON array. No grounding context loaded."
+# Guard: roster.json must be a {repos:[…]} object (not an array or scalar).
+if ! jq -e 'type == "object" and (.repos | type) == "array"' "${ROSTER}" > /dev/null 2>&1; then
+    warn "roster.json at '${ROSTER}' is not a {repos:[…]} object. No grounding context loaded."
     write_env_exports
     exit 0
 fi
 
+repo_count="$(jq '.repos | length' "${ROSTER}")"
+
 for (( i = 0; i < repo_count; i++ )); do
-    repo_path="$(jq -r --argjson i "$i" '.[$i].repo' "${ROSTER}")"
-    slug="$(jq -r --argjson i "$i" '.[$i].slug' "${ROSTER}")"
+    repo_path="$(jq -r --argjson i "$i" '.repos[$i].path' "${ROSTER}")"
+    slug="$(jq -r --argjson i "$i" '.repos[$i].slug' "${ROSTER}")"
 
     printf '\n=== %s ===\n' "${repo_path}"
 

@@ -55,19 +55,21 @@ setup() {
 
 # Build a minimal fake coordination root with roster.json + repos.
 # Usage: make_coordination_root <tmpdir> <repo1_path> <slug1> [<repo2_path> <slug2> ...]
-# Writes roster.json with one entry per pair.
+# Writes roster.json in the unified object shape:
+#   {"started_at": "<ISO>", "repos": [{"name": "<basename>", "path": "<path>", "slug": "<slug>"}]}
 make_roster() {
     local root="$1"
     shift
-    local json='[]'
+    local repos='[]'
     while [[ $# -ge 2 ]]; do
         local repo_path="$1"
         local slug="$2"
         shift 2
-        json=$(printf '%s' "$json" | jq --arg r "$repo_path" --arg s "$slug" \
-            '. + [{"repo": $r, "slug": $s}]')
+        repos=$(printf '%s' "$repos" | jq --arg p "$repo_path" --arg s "$slug" \
+            '. + [{"name": ($p | split("/") | last), "path": $p, "slug": $s}]')
     done
-    printf '%s\n' "$json" > "${root}/roster.json"
+    printf '%s' "$repos" | jq '{"started_at": "2026-06-12T10:00:00Z", "repos": .}' \
+        > "${root}/roster.json"
 }
 
 # Create a fake repo with CLAUDE.md and optionally grounding.md.
@@ -114,10 +116,12 @@ make_repo() {
     rm -rf "${tmpdir}"
 }
 
-@test "(a) wrong-shape roster.json (object not array): warns loudly and exits 0" {
+@test "(a) wrong-shape roster.json (old top-level array): warns loudly and exits 0" {
     local tmpdir
     tmpdir="$(mktemp -d)"
-    printf '{"repo": "x", "slug": "y"}\n' > "${tmpdir}/roster.json"
+    # Old (pre-unification) shape: a top-level array of {repo,slug}. The hook now
+    # expects a {started_at, repos:[…]} object and must reject this.
+    printf '[{"repo": "x", "slug": "y"}]\n' > "${tmpdir}/roster.json"
 
     run --separate-stderr bash "${HOOK_SCRIPT}" \
         --event startup \

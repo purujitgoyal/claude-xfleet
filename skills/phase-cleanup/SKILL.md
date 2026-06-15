@@ -97,14 +97,14 @@ Procedure:
 Before any deletion, read shared session context. Used by handoff sweep and worker-inbox iteration. This step is always read-only; runs identically in both DRY-RUN and `--apply`.
 
 ```bash
-# Session start time — used as mtime floor for handoff sweep.
-# If _session.json is missing (shouldn't happen if orchestrator ran properly),
-# fall back to 24 hours ago.
-SESSION_START="$(jq -r '.started_at // "1970-01-01T00:00:00Z"' "$XFLEET_COORDINATION_ROOT/state/_session.json" 2>/dev/null)"
+# Session start time — used as mtime floor for handoff sweep. Sourced from the
+# session roster (orch owns it). If roster.json is missing or has no started_at
+# (shouldn't happen if the orchestrator ran session-init), fall back to 24h ago.
+SESSION_START="$(jq -r '.started_at // "1970-01-01T00:00:00Z"' "$XFLEET_COORDINATION_ROOT/roster.json" 2>/dev/null)"
 if [[ "$SESSION_START" == "1970-01-01T00:00:00Z" || -z "$SESSION_START" ]]; then
   # macOS/BSD date syntax. GNU/Linux equivalent: date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ
   SESSION_START="$(date -u -v-24H +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Warning: no valid _session.json:started_at; using $SESSION_START (24h ago) as mtime floor."
+  echo "Warning: no valid roster.json:started_at; using $SESSION_START (24h ago) as mtime floor."
 fi
 
 # Worker names (for the Redis inbox flush below) — basenames of the per-worker
@@ -114,16 +114,17 @@ WORKERS=()
 for f in "$XFLEET_COORDINATION_ROOT"/state/*.json; do
   [ -e "$f" ] || continue              # no-match guard (replaces zsh (N))
   name="$(basename "$f" .json)"
-  case "$name" in _*) continue;; esac  # skip _session.json, _orchestrator.json
+  case "$name" in _*) continue;; esac  # skip _-prefixed files, e.g. _orchestrator.json
   WORKERS+=("$name")
 done
 
 # Participating repos + slugs for the handoff sweep come from the session ROSTER —
 # the canonical source of repo paths (the same file the SessionStart grounding hook
-# reads). Each entry is {"repo": "<path>", "slug": "<slug>"}; this session's
-# phase-exit handoffs live at {repo}/docs/superpowers/xfleet/{slug}/. Repo paths are
-# NOT a worker state field — state-schema.md has none (the old `repo_path` read here
-# was a stale assumption; no session ever wrote it).
+# reads). The roster is a {started_at, repos:[…]} object; each repos[] entry is
+# {"name": "<repo>", "path": "<path>", "slug": "<slug>"}; this session's phase-exit
+# handoffs live at {path}/docs/superpowers/xfleet/{slug}/. Repo paths are NOT a
+# worker state field — state-schema.md has none (the old `repo_path` read here was
+# a stale assumption; no session ever wrote it).
 ROSTER="$XFLEET_COORDINATION_ROOT/roster.json"
 
 # Portable mtime floor: BSD find (macOS default) lacks GNU's -newermt, so stamp a
@@ -141,10 +142,10 @@ via `handoff-writer.sh`). Filter: filename `handoff-*.md` in the wave's `{slug}`
 AND mtime >= `SESSION_START`. The per-`{slug}` directory is the isolation boundary —
 the sweep is scoped to xfleet's own subtree and never touches unrelated handoffs.
 
-If `roster.json` is missing or not a non-empty array, skip the entire sweep with a
-`[skipped] no roster — cannot locate repos` line (there is no other source for repo
-paths). Otherwise, for each `{repo, slug}` entry in the roster:
-- Target dir: `${repo}/docs/superpowers/xfleet/${slug}/`
+If `roster.json` is missing or its `.repos` is not a non-empty array, skip the entire
+sweep with a `[skipped] no roster — cannot locate repos` line (there is no other source
+for repo paths). Otherwise, for each `{name, path, slug}` entry in `.repos`:
+- Target dir: `${path}/docs/superpowers/xfleet/${slug}/`
 - If the dir doesn't exist, skip that entry with a `[skipped]` line.
 - Find files matching `handoff-*.md` newer than the session marker.
 - `--apply`: delete matches.
@@ -152,8 +153,8 @@ paths). Otherwise, for each `{repo, slug}` entry in the roster:
 
 ```bash
 # Read each roster entry, then sweep its wave dir:
-jq -c '.[]' "$ROSTER" | while read -r entry; do
-  repo="$(jq -r '.repo' <<<"$entry")"; slug="$(jq -r '.slug' <<<"$entry")"
+jq -c '.repos[]' "$ROSTER" | while read -r entry; do
+  repo="$(jq -r '.path' <<<"$entry")"; slug="$(jq -r '.slug' <<<"$entry")"
   DIR="${repo}/docs/superpowers/xfleet/${slug}"
   [ -d "$DIR" ] || { printf '[skipped] %s (dir absent)\n' "$DIR"; continue; }
   find "$DIR" -maxdepth 1 -type f -name 'handoff-*.md' -newer "$SESSION_MARKER" -print
@@ -177,7 +178,8 @@ rm -f "$XFLEET_COORDINATION_ROOT"/concerns/*.md
 rm -f "$XFLEET_COORDINATION_ROOT"/resolutions/*.md
 rm -f "$XFLEET_COORDINATION_ROOT"/reviews/*.md
 rm -f "$XFLEET_COORDINATION_ROOT"/alignment/*.md
-rm -f "$XFLEET_COORDINATION_ROOT"/state/*.json           # includes _session.json, _orchestrator.json
+rm -f "$XFLEET_COORDINATION_ROOT"/state/*.json           # includes _orchestrator.json
+rm -f "$XFLEET_COORDINATION_ROOT"/roster.json            # session roster (lives at coord-root, not under state/)
 rm -f "$XFLEET_COORDINATION_ROOT"/handoffs/*.md          # legacy non-repo-local handoff location
 ```
 

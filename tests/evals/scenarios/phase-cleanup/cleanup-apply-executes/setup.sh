@@ -21,18 +21,19 @@ mkdir -p "${ROOT}/reviews" "${ROOT}/specs"
 printf '# concern\nplaceholder\n'            > "${ROOT}/concerns/c-1.md"
 printf '# resolution\nD-1 agreed\n'          > "${ROOT}/resolutions/r-1.md"
 printf '# review\nplaceholder\n'             > "${ROOT}/reviews/rv-1.md"
-printf '{"started_at":"2026-06-11T09:00:00Z"}\n' > "${ROOT}/state/_session.json"
 
 eval_write_worker_state "${ROOT}" "${RESPONDER}" "$(jq -cn \
     --arg now "2026-06-11T10:00:00Z" \
     '{schema_version: "1", status: "idle", current_phase: "cleanup", current_task: null, last_updated: $now}'
 )"
 
-# Session roster (canonical repo-path source) + a real phase-exit handoff at
-# {repo}/docs/superpowers/xfleet/{slug}/handoff-*.md for the sweep to remove.
+# Session roster (canonical repo-path + session-start source) in the unified
+# {started_at, repos:[{name,path,slug}]} shape + a real phase-exit handoff at
+# {path}/docs/superpowers/xfleet/{slug}/handoff-*.md for the sweep to remove.
 SLUG="evalwave"
 jq -cn --arg repo "${REPO_DIR}" --arg slug "${SLUG}" \
-    '[{repo: $repo, slug: $slug}]' > "${ROOT}/roster.json"
+    '{started_at: "2026-06-11T09:00:00Z", repos: [{name: ($repo | split("/") | last), path: $repo, slug: $slug}]}' \
+    > "${ROOT}/roster.json"
 HANDOFF_DIR="${REPO_DIR}/docs/superpowers/xfleet/${SLUG}"
 mkdir -p "${HANDOFF_DIR}"
 printf '# handoff\nplaceholder\n' > "${HANDOFF_DIR}/handoff-implement.md"

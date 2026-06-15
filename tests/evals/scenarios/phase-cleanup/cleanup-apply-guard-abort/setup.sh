@@ -18,7 +18,9 @@ printf '# resolution\nD-1 agreed\n'          > "${ROOT}/resolutions/r-1.md"
 printf '# feature section\nplaceholder\n'     > "${ROOT}/specs/feature-section.md"
 # Other artifacts that must also survive the abort.
 printf '# concern\nplaceholder\n'            > "${ROOT}/concerns/c-1.md"
-printf '{"started_at":"2026-06-11T09:00:00Z"}\n' > "${ROOT}/state/_session.json"
+# Session roster (unified {started_at, repos:[…]} shape) — carries the session
+# start time. The guard aborts before the handoff sweep, so repos may be empty.
+printf '{"started_at":"2026-06-11T09:00:00Z","repos":[]}\n' > "${ROOT}/roster.json"
 
 eval_write_worker_state "${ROOT}" "${RESPONDER}" "$(jq -cn \
     --arg now "2026-06-11T10:00:00Z" \

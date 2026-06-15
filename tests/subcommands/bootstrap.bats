@@ -75,8 +75,8 @@ setup() {
 
 @test "existing state file: output mentions resume" {
     echo '{"existing":true}' > "${COORD}/state/w1.json"
-    run "${XFLEET}" bootstrap
-    [[ "$output" == *"resume"* ]]
+    run --separate-stderr "${XFLEET}" bootstrap
+    [[ "${stderr}" == *"resume"* ]]
 }
 
 @test "existing state file: existing file is unchanged" {
@@ -94,8 +94,8 @@ setup() {
 }
 
 @test "role gate: orchestrator role prints role-mismatch error" {
-    XFLEET_ROLE=orchestrator run "${XFLEET}" bootstrap
-    [[ "$output" == *"worker"* ]]
+    XFLEET_ROLE=orchestrator run --separate-stderr "${XFLEET}" bootstrap
+    [[ "${stderr}" == *"worker"* ]]
 }
 
 # (e) missing XFLEET_COORDINATION_ROOT → exits non-zero with a clear message.
@@ -107,6 +107,6 @@ setup() {
 
 @test "missing XFLEET_COORDINATION_ROOT: clear error message" {
     unset XFLEET_COORDINATION_ROOT
-    run "${XFLEET}" bootstrap
-    [[ "$output" == *"XFLEET_COORDINATION_ROOT"* ]]
+    run --separate-stderr "${XFLEET}" bootstrap
+    [[ "${stderr}" == *"XFLEET_COORDINATION_ROOT"* ]]
 }

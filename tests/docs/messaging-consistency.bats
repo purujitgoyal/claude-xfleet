@@ -25,7 +25,7 @@ SECTION_H_MARKER='SECTION-H-SUBCOMMAND-TABLE'
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Load the 24 registry names into the REGISTRY_NAMES array.
+# Load the 25 registry names into the REGISTRY_NAMES array.
 load_registry_names() {
     # shellcheck disable=SC1090
     source "${REGISTRY}"

@@ -23,7 +23,7 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [ -n "$output" ]
 }
 
-@test "(a) xfleet --help lists all 24 subcommands" {
+@test "(a) xfleet --help lists all 25 subcommands" {
     run "${XFLEET}" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"status"* ]]
@@ -41,6 +41,7 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
     [[ "$output" == *"phase"* ]]
     [[ "$output" == *"engage"* ]]
     [[ "$output" == *"disengage"* ]]
+    [[ "$output" == *"bootstrap"* ]]
     [[ "$output" == *"resume"* ]]
     [[ "$output" == *"continue"* ]]
     [[ "$output" == *"phase-complete"* ]]
@@ -192,6 +193,12 @@ XFLEET="${BATS_TEST_DIRNAME}/../../bin/xfleet"
 
 @test "(c) xfleet disengage routes to handler (not unknown subcommand)" {
     run --separate-stderr "${XFLEET}" disengage
+    [ "$status" -ne 0 ]
+    [[ "${stderr}" != *"Unknown subcommand"* ]]
+}
+
+@test "(c) xfleet bootstrap routes to handler (not unknown subcommand)" {
+    run --separate-stderr "${XFLEET}" bootstrap
     [ "$status" -ne 0 ]
     [[ "${stderr}" != *"Unknown subcommand"* ]]
 }

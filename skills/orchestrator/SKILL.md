@@ -1,13 +1,14 @@
 ---
 name: orchestrator
 description: >
-  Use when invoked as `/xfleet:orchestrator repos [path]` to drive an xfleet
-  multi-repo coordination session — routes coordination messages between worker
-  sessions, tracks per-repo state via state files under the coordination root,
-  gates phase transitions on human approval, and relays escalations / decisions
-  / convergence warnings to the human via Slack. Trigger phrases: "start the
-  orchestrator", "run /xfleet:orchestrator", "resume the orchestrator", "drive
-  the coordination session". Does not do codebase work itself.
+  Use when invoked as `/xfleet:orchestrator <repos> [spec-path] --slug <slug>`
+  to drive an xfleet multi-repo coordination session — routes coordination
+  messages between worker sessions, tracks per-repo state via state files under
+  the coordination root, gates phase transitions on human approval, and relays
+  escalations / decisions / convergence warnings to the human via Slack. Trigger
+  phrases: "start the orchestrator", "run /xfleet:orchestrator", "resume the
+  orchestrator", "drive the coordination session". Does not do codebase work
+  itself.
 ---
 
 ## Identity + Scope
@@ -42,6 +43,32 @@ plugin; when Slack is disabled it degrades to stdout prefixed `[slack-disabled]`
 
 Path notation throughout uses `$XFLEET_COORDINATION_ROOT/...` (SC-2); never
 hardcoded repo paths.
+
+## Session Bootstrap
+
+On a fresh `/xfleet:orchestrator` invocation (not a resume):
+
+1. **Parse the invocation** — extract the comma-separated `repos` list, the
+   optional `spec-path`, and the required `--slug`.
+2. **Write the roster** — run `xfleet session-init --slug <slug> <repos>` to
+   create `$XFLEET_COORDINATION_ROOT/roster.json`. The orchestrator owns the
+   roster; `session-init` resolves each repo name to an absolute path via the
+   `repos` registry in `~/.config/xfleet/config.json`. If a name is not
+   registered there, surface the command's error to the human — do not guess a
+   path.
+3. **Connect to Slack** — call the slack-channel plugin `connect` to register
+   this session as the primary session for the coordination run.
+4. **Enter the starting phase** — `qa-spec` when no `spec-path` was given; the
+   spec-driven path when one was provided.
+
+**On resume** (the `xfleet resume` path): the roster already exists — skip
+`session-init` entirely. Do not re-initialize a roster that was written by the
+original invocation.
+
+**First-session grounding note**: grounding loads empty on the very first
+session. The SessionStart hook runs before `session-init`, and `grounding.md` is
+produced later during qa-spec onboarding — an empty grounding file at startup is
+expected, not an error.
 
 ## Autonomous Execution
 

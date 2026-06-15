@@ -108,3 +108,19 @@ assert_heading() {
     run grep -F "shared/messaging.md" "${SKILL}"
     [ "$status" -eq 0 ]
 }
+
+# --- Task 5: Session Bootstrap section --------------------------------------
+
+@test "section: Session Bootstrap heading present" {
+    assert_heading "Session Bootstrap"
+}
+
+@test "Session Bootstrap references xfleet session-init command" {
+    run grep -F "xfleet session-init" "${SKILL}"
+    [ "$status" -eq 0 ]
+}
+
+@test "frontmatter description mentions --slug" {
+    run grep -F -- "--slug" "${SKILL}"
+    [ "$status" -eq 0 ]
+}

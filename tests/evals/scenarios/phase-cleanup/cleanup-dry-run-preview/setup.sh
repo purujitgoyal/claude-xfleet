@@ -18,13 +18,24 @@ mkdir -p "${ROOT}/reviews" "${ROOT}/specs"
 printf '# concern\nplaceholder\n'    > "${ROOT}/concerns/c-1.md"
 printf '# resolution\nplaceholder\n' > "${ROOT}/resolutions/r-1.md"
 printf '# review\nplaceholder\n'     > "${ROOT}/reviews/rv-1.md"
-printf '{"started_at":"2026-06-11T09:00:00Z"}\n' > "${ROOT}/state/_session.json"
 
-# Worker state (schema-valid; no repo_path — that field is not in the schema).
+# Worker state (schema-valid; repo paths live in roster.json, not state).
 eval_write_worker_state "${ROOT}" "${RESPONDER}" "$(jq -cn \
     --arg now "2026-06-11T10:00:00Z" \
     '{schema_version: "1", status: "idle", current_phase: "cleanup", current_task: null, last_updated: $now}'
 )"
+
+# Session roster (canonical source of repo paths + session start time for the
+# handoff sweep) in the unified {started_at, repos:[{name,path,slug}]} shape + a real
+# phase-exit handoff at {path}/docs/superpowers/xfleet/{slug}/handoff-*.md. Created
+# now (mtime >> session start), so the sweep's mtime floor includes it.
+SLUG="evalwave"
+jq -cn --arg repo "${REPO_DIR}" --arg slug "${SLUG}" \
+    '{started_at: "2026-06-11T09:00:00Z", repos: [{name: ($repo | split("/") | last), path: $repo, slug: $slug}]}' \
+    > "${ROOT}/roster.json"
+HANDOFF_DIR="${REPO_DIR}/docs/superpowers/xfleet/${SLUG}"
+mkdir -p "${HANDOFF_DIR}"
+printf '# handoff\nplaceholder\n' > "${HANDOFF_DIR}/handoff-implement.md"
 
 # --- Redis streams + a round-counter key (DB 15 sandbox) ---
 eval_redis XADD "inbox:${RESPONDER}" "*" data '{"type":"question","content":"x"}' >/dev/null

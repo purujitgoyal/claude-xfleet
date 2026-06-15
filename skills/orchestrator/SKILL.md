@@ -1,13 +1,14 @@
 ---
 name: orchestrator
 description: >
-  Use when invoked as `/xfleet:orchestrator repos [path]` to drive an xfleet
-  multi-repo coordination session — routes coordination messages between worker
-  sessions, tracks per-repo state via state files under the coordination root,
-  gates phase transitions on human approval, and relays escalations / decisions
-  / convergence warnings to the human via Slack. Trigger phrases: "start the
-  orchestrator", "run /xfleet:orchestrator", "resume the orchestrator", "drive
-  the coordination session". Does not do codebase work itself.
+  Use when invoked as `/xfleet:orchestrator <repos> [spec-path] --slug <slug>`
+  to drive an xfleet multi-repo coordination session — routes coordination
+  messages between worker sessions, tracks per-repo state via state files under
+  the coordination root, gates phase transitions on human approval, and relays
+  escalations / decisions / convergence warnings to the human via Slack. Trigger
+  phrases: "start the orchestrator", "run /xfleet:orchestrator", "resume the
+  orchestrator", "drive the coordination session". Does not do codebase work
+  itself.
 ---
 
 ## Identity + Scope
@@ -42,6 +43,34 @@ plugin; when Slack is disabled it degrades to stdout prefixed `[slack-disabled]`
 
 Path notation throughout uses `$XFLEET_COORDINATION_ROOT/...` (SC-2); never
 hardcoded repo paths.
+
+## Session Bootstrap
+
+On a fresh `/xfleet:orchestrator` invocation (not a resume):
+
+1. **Parse the invocation** — extract the comma-separated `repos` list, the
+   optional `spec-path`, and the required `--slug`.
+2. **Write the roster** — run `xfleet session-init --slug <slug> <repos>` (where
+   `<repos>` is a single comma-separated string, e.g. `oracle,server` — not
+   multiple positional args; the CLI takes exactly one positional and rejects a
+   second) to create `$XFLEET_COORDINATION_ROOT/roster.json`. The orchestrator
+   owns the roster; `session-init` resolves each repo name to an absolute path
+   via the `repos` registry in `~/.config/xfleet/config.json`. If a name is not
+   registered there, surface the command's error to the human — do not guess a
+   path.
+3. **Connect to Slack** — call the slack-channel plugin `connect` to register
+   this session as the primary session for the coordination run.
+4. **Enter the starting phase** — `qa-spec` when no `spec-path` was given; the
+   spec-driven path when one was provided.
+
+**On resume** (the `xfleet resume` path): the roster already exists — skip
+`session-init` entirely. Do not re-initialize a roster that was written by the
+original invocation.
+
+**First-session grounding note**: on the very first session, `roster.json` does
+not yet exist — the SessionStart grounding hook skips grounding output and emits
+a warning instead. This is expected; `grounding.md` is produced later, during
+qa-spec onboarding.
 
 ## Autonomous Execution
 
@@ -83,12 +112,14 @@ reality; a solo read would be stale or wrong and regresses F-1.
 - Grounding files loaded by the SessionStart hook (`{repo}/CLAUDE.md` +
   `{repo}/docs/superpowers/xfleet/{slug}/grounding.md`), injected as context.
 
-When you need repo detail, dispatch `xfleet question <worker>` or
-`xfleet task <worker>`. If you don't even know how to frame the question, ask the
-worker for the framing — "how should I ask about <topic> in your repo?" is itself
-a valid question — or consult the human. There is **no** PreToolUse block on
-Read/Grep here; this is cultural discipline + the Rationalizations table, the
-same audit-invariant pattern as cluster 4g's no-hooks-on-slack decision.
+When you need repo detail, dispatch `xfleet task <worker>` — the orch→worker
+investigative channel (it returns a `task-response`). `question` is **worker-only**
+(messaging.md b), so an orch session cannot originate one; `xfleet task` is how orch
+asks. If you don't even know how to frame the ask, send a `task` requesting the
+framing — "how should I ask about <topic> in your repo?" is itself a valid task — or
+consult the human. There is **no** PreToolUse block on Read/Grep here; this is
+cultural discipline + the Rationalizations table, the same audit-invariant pattern
+as cluster 4g's no-hooks-on-slack decision.
 
 Rationalizations-to-Reject: `references/rationalizations.md` → "Authority Hierarchy / Strict Delegation".
 

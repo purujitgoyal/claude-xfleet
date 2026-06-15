@@ -19,6 +19,11 @@ ROOT="${XFLEET_COORDINATION_ROOT}"
 [[ ! -f "${ROOT}/reviews/rv-1.md" ]];        eval_check $? "apply removed reviews/rv-1.md"
 [[ ! -f "${ROOT}/state/${RESPONDER}.json" ]]; eval_check $? "apply removed state/${RESPONDER}.json"
 
+# The session handoff under the roster repo's xfleet/{slug}/ dir must be swept...
+[[ ! -f "${REPO_DIR}/docs/superpowers/xfleet/evalwave/handoff-implement.md" ]]; eval_check $? "apply removed the repo-local handoff"
+# ...but its non-handoff sibling in the same dir must be left intact.
+[[ -f "${REPO_DIR}/docs/superpowers/xfleet/evalwave/section.md" ]]; eval_check $? "apply left section.md (selective sweep, not wildcard)"
+
 # Redis streams + counter must be flushed.
 [[ "$(eval_redis EXISTS "inbox:${RESPONDER}")" -eq 0 ]];   eval_check $? "apply flushed inbox:${RESPONDER}"
 [[ "$(eval_redis EXISTS "inbox:orchestrator")" -eq 0 ]];   eval_check $? "apply flushed inbox:orchestrator"

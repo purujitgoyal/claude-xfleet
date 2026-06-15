@@ -72,6 +72,15 @@ eval_write_worker_state() {
         "${root}/state/${name}.json" worker >&2
 }
 
+# Write the orchestrator state file and fail loudly if it does not pass the schema.
+# Usage: eval_write_orch_state <root> <json>
+eval_write_orch_state() {
+    local root="$1" json="$2"
+    printf '%s' "${json}" > "${root}/state/_orchestrator.json"
+    bash "${EVAL_REPO_ROOT}/tools/xfleet/validate-state.sh" \
+        "${root}/state/_orchestrator.json" orchestrator >&2
+}
+
 # Seed a raw wire message into a worker inbox (creates the group so a listener
 # started later still sees it; XADD-before-group is fine with group id 0).
 # Usage: eval_seed_inbox <inbox-name> <json-message>

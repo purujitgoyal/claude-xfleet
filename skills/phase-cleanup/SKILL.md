@@ -39,8 +39,8 @@ This is a two-mode skill: **DRY-RUN** (default, read-only preview) and
 **--apply** (executes). The pre-flight guard protects against destroying
 cross-repo decisions that have not been merged into a final spec —
 `--apply --force` bypasses it consciously. Handoff sweep is session-scoped
-(prefix `xfleet-` + mtime ≥ session start) so unrelated handoffs are never
-touched.
+(per-`{slug}` dir + `handoff-*.md` + mtime ≥ session start) so unrelated handoffs
+are never touched.
 
 ## Arguments
 
@@ -97,58 +97,79 @@ Procedure:
 Before any deletion, read shared session context. Used by handoff sweep and worker-inbox iteration. This step is always read-only; runs identically in both DRY-RUN and `--apply`.
 
 ```bash
-# Session start time — used as mtime floor for handoff sweep.
-# If _session.json is missing (shouldn't happen if orchestrator ran properly),
-# fall back to 24 hours ago.
-SESSION_START="$(jq -r '.started_at // "1970-01-01T00:00:00Z"' "$XFLEET_COORDINATION_ROOT/state/_session.json" 2>/dev/null)"
+# Session start time — used as mtime floor for handoff sweep. Sourced from the
+# session roster (orch owns it). If roster.json is missing or has no started_at
+# (shouldn't happen if the orchestrator ran session-init), fall back to 24h ago.
+SESSION_START="$(jq -r '.started_at // "1970-01-01T00:00:00Z"' "$XFLEET_COORDINATION_ROOT/roster.json" 2>/dev/null)"
 if [[ "$SESSION_START" == "1970-01-01T00:00:00Z" || -z "$SESSION_START" ]]; then
   # macOS/BSD date syntax. GNU/Linux equivalent: date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ
   SESSION_START="$(date -u -v-24H +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Warning: no valid _session.json:started_at; using $SESSION_START (24h ago) as mtime floor."
+  echo "Warning: no valid roster.json:started_at; using $SESSION_START (24h ago) as mtime floor."
 fi
 
-# Workers and their repo paths (for handoff sweep).
-# repo_path was written by each worker at /xfleet:worker startup.
-# Portable for bash 3.2 (macOS default): parallel indexed arrays + a plain
-# *.json glob with an existence guard (no zsh (N) qualifier, no bash-4 -A).
+# Worker names (for the Redis inbox flush below) — basenames of the per-worker
+# state files, skipping the _-prefixed orchestrator/session files.
+# Portable for bash 3.2 (macOS default): a plain *.json glob with an existence guard.
 WORKERS=()
-WORKER_REPO_PATHS=()   # parallel indexed array; index aligns with WORKERS
 for f in "$XFLEET_COORDINATION_ROOT"/state/*.json; do
   [ -e "$f" ] || continue              # no-match guard (replaces zsh (N))
   name="$(basename "$f" .json)"
-  case "$name" in _*) continue;; esac  # skip _session.json, _orchestrator.json
+  case "$name" in _*) continue;; esac  # skip _-prefixed files, e.g. _orchestrator.json
   WORKERS+=("$name")
-  WORKER_REPO_PATHS+=("$(jq -r '.repo_path // empty' "$f")")
 done
 
-# Orchestrator repo path (for its own handoff sweep below).
-# repo_path was written by the orchestrator at /xfleet:orchestrator startup.
-# Guarded: empty if the file or field is absent, so the orch sweep skips
-# gracefully rather than running against an undefined/empty path.
-ORCH_REPO_PATH="$(jq -r '.repo_path // empty' "$XFLEET_COORDINATION_ROOT/state/_orchestrator.json" 2>/dev/null)"
+# Participating repos + slugs for the handoff sweep come from the session ROSTER —
+# the canonical source of repo paths (the same file the SessionStart grounding hook
+# reads). The roster is a {started_at, repos:[…]} object; each repos[] entry is
+# {"name": "<repo>", "path": "<path>", "slug": "<slug>"}; this session's phase-exit
+# handoffs live at {path}/docs/superpowers/xfleet/{slug}/. Repo paths are NOT a
+# worker state field — state-schema.md has none (the old `repo_path` read here was
+# a stale assumption; no session ever wrote it).
+ROSTER="$XFLEET_COORDINATION_ROOT/roster.json"
+
+# Portable mtime floor: BSD find (macOS default) lacks GNU's -newermt, so stamp a
+# marker file to SESSION_START and compare with the portable `find -newer`.
+SESSION_MARKER="$(mktemp)"
+touch -d "$SESSION_START" "$SESSION_MARKER" 2>/dev/null \
+  || touch -t "$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$SESSION_START" '+%Y%m%d%H%M.%S')" "$SESSION_MARKER"
 ```
 
-## Handoff Sweep (xfleet-prefixed, session-scoped)
+## Handoff Sweep (per-slug, session-scoped)
 
-Sweep handoff files produced during THIS session. Belt-and-suspenders filter: filename prefix `xfleet-` AND mtime >= `SESSION_START`. Never touch non-xfleet handoffs; never touch xfleet handoffs older than this session's start.
+Sweep this session's phase-exit handoffs. These live at
+`{repo}/docs/superpowers/xfleet/{slug}/handoff-{phase}.md` (written by `xfleet phase`
+via `handoff-writer.sh`). Filter: filename `handoff-*.md` in the wave's `{slug}` dir
+AND mtime >= `SESSION_START`. The per-`{slug}` directory is the isolation boundary —
+the sweep is scoped to xfleet's own subtree and never touches unrelated handoffs.
 
-For each worker index `i` in `WORKERS` (use the index to read the parallel
-`WORKER_REPO_PATHS[i]`, e.g. `for i in "${!WORKERS[@]}"; do …`):
-- Target dir: `${WORKER_REPO_PATHS[$i]}/docs/superpowers/handoffs/`
-- If `WORKER_REPO_PATHS[$i]` is empty or the dir doesn't exist, skip with a `[skipped]` line.
-- Find files matching `xfleet-*.md` with mtime >= `SESSION_START`.
+If `roster.json` is missing or its `.repos` is not a non-empty array, skip the entire
+sweep with a `[skipped] no roster — cannot locate repos` line (there is no other source
+for repo paths). Otherwise, for each `{name, path, slug}` entry in `.repos`:
+- Target dir: `${path}/docs/superpowers/xfleet/${slug}/`
+- If the dir doesn't exist, skip that entry with a `[skipped]` line.
+- Find files matching `handoff-*.md` newer than the session marker.
 - `--apply`: delete matches.
 - DRY-RUN: list matches prefixed with `[dry-run] would remove:`.
 
-Also sweep the orchestrator's own handoffs at `${ORCH_REPO_PATH}/docs/superpowers/handoffs/` with the same filter (`ORCH_REPO_PATH` is assigned in the Session Context block above). If `ORCH_REPO_PATH` is empty (no `_orchestrator.json` or no `repo_path` field) or the dir doesn't exist, skip the orch sweep with a `[skipped]` line.
-
 ```bash
-# Pseudocode for each target dir $DIR:
-find "$DIR" -maxdepth 1 -name 'xfleet-*.md' -newermt "$SESSION_START" -print
-# --apply branch appends -delete to the find invocation.
+# Read each roster entry, then sweep its wave dir:
+jq -c '.repos[]' "$ROSTER" | while read -r entry; do
+  repo="$(jq -r '.path' <<<"$entry")"; slug="$(jq -r '.slug' <<<"$entry")"
+  DIR="${repo}/docs/superpowers/xfleet/${slug}"
+  [ -d "$DIR" ] || { printf '[skipped] %s (dir absent)\n' "$DIR"; continue; }
+  find "$DIR" -maxdepth 1 -type f -name 'handoff-*.md' -newer "$SESSION_MARKER" -print
+  # --apply branch appends -delete to the find invocation.
+done
 ```
 
-Handoffs NOT matching the pattern (e.g., non-xfleet handoffs from unrelated sessions) are never touched. If a human accidentally omits the `xfleet-` prefix on a multi-repo handoff, that file leaks — flag this in the DRY-RUN output if any `*.md` files in the target dir post-date `SESSION_START` but don't match the pattern.
+The orchestrator's own handoffs are NOT swept here: cleanup runs in a worker session,
+the orchestrator is not a roster entry, and there is no reliable source for its repo
+path. Its repo-local handoffs are left for the orchestrator session to clean up; the
+legacy coordination-root handoffs are still removed by the artifact step below.
+
+Only `handoff-*.md` files are swept. Other artifacts in the `{slug}` dir
+(`section.md`, `plan.md`, `section-vN.md`, …) are deliberately left — selecting by the
+`handoff-` prefix is what prevents clobbering those durable/transient siblings.
 
 ## Remove Intermediate Artifacts
 
@@ -157,15 +178,16 @@ rm -f "$XFLEET_COORDINATION_ROOT"/concerns/*.md
 rm -f "$XFLEET_COORDINATION_ROOT"/resolutions/*.md
 rm -f "$XFLEET_COORDINATION_ROOT"/reviews/*.md
 rm -f "$XFLEET_COORDINATION_ROOT"/alignment/*.md
-rm -f "$XFLEET_COORDINATION_ROOT"/state/*.json           # includes _session.json, _orchestrator.json
+rm -f "$XFLEET_COORDINATION_ROOT"/state/*.json           # includes _orchestrator.json
+rm -f "$XFLEET_COORDINATION_ROOT"/roster.json            # session roster (lives at coord-root, not under state/)
 rm -f "$XFLEET_COORDINATION_ROOT"/handoffs/*.md          # legacy non-repo-local handoff location
 ```
 
-`$XFLEET_COORDINATION_ROOT/handoffs/*.md` is the legacy destination used before handoffs moved to each worker's repo-local `docs/superpowers/handoffs/`. It may contain stragglers from older sessions that fell through the `docs/superpowers/handoffs/` → coordination-root fallback chain in prepare-compact's output location. Safe to sweep here — these files are session-scoped by the state/resolutions cleanup that follows, not by individual inspection.
+`$XFLEET_COORDINATION_ROOT/handoffs/*.md` is a legacy destination used before phase handoffs moved to each repo's `docs/superpowers/xfleet/{slug}/`. It may contain stragglers from older sessions that fell through prepare-compact's output-location fallback chain. Safe to sweep here — these files are session-scoped by the state/resolutions cleanup that follows, not by individual inspection.
 
 **DRY-RUN behavior:** do NOT run the `rm` commands. For each pattern, list matches via `ls` prefixed with `[dry-run] would remove:`. Empty matches print `[dry-run] (none) <pattern>`.
 
-**Do NOT** run a `rm -f docs/superpowers/handoffs/*.md` — worker-repo handoffs are handled by the selective sweep above. Removing them with a wildcard would clobber unrelated handoffs from other sessions.
+**Do NOT** wildcard-delete a repo's `docs/superpowers/xfleet/{slug}/*.md` — that dir also holds durable/transient siblings (`section.md`, `plan.md`, snapshots). Repo-local handoffs are handled by the selective `handoff-*.md` sweep above.
 
 ## Flush Redis Streams
 
@@ -196,7 +218,7 @@ Do NOT remove `$XFLEET_COORDINATION_ROOT/specs/` or `$XFLEET_COORDINATION_ROOT/p
 
 ## Exit
 
-List what was removed/would-be-removed: artifact counts per directory, handoff files swept per worker (grouped by repo), Redis streams deleted, counter keys deleted.
+List what was removed/would-be-removed: artifact counts per directory, handoff files swept per repo/slug, Redis streams deleted, counter keys deleted.
 
 **DRY-RUN header:** `Dry-run preview — no changes made. Pass --apply to execute.`
 **Real-run header:** `Cleanup complete.`
@@ -211,6 +233,6 @@ emission after it.
 | "I'll just pass `--apply --force` — finalize-spec is a separate concern." | `--force` means cross-repo decisions in `$XFLEET_COORDINATION_ROOT/resolutions/` get deleted before they've been merged into any final spec. The guard exists to catch this exact mistake. Run finalize-spec first. |
 | "Dry-run is a formality, I can skip straight to `--apply`." | The dry-run output shows which handoff files will be swept, which Redis streams will be flushed, and whether the guard would abort. Reading it is 15 seconds of insurance against destroying non-xfleet handoffs or aborted sessions' state. |
 | "The guard is conservative — the resolutions must be stale." | If resolutions exist and per-repo sections still exist, finalize-spec has NOT been run. The presence/absence check is literal, not heuristic. |
-| "I'll just `rm -f docs/superpowers/handoffs/*.md` to speed things up." | That's the exact anti-pattern this skill prevents (line with the "Do NOT run" comment). It clobbers handoffs from unrelated sessions in the same directory. Use the selective session-scoped sweep above. |
+| "I'll just `rm -f docs/superpowers/xfleet/{slug}/*.md` to speed things up." | That's the exact anti-pattern this skill prevents (the "Do NOT" note above). That dir also holds `section.md` / `plan.md` / snapshots — a wildcard clobbers durable artifacts. Use the selective `handoff-*.md` sweep above. |
 | "Dry-run shows some stuff I don't care about — I'll `--apply` without reading." | Dry-run is also how you catch handoffs accidentally written without the `xfleet-` prefix (they get flagged but not swept). Reading once prevents silent leaks. |
 | "Files in `$XFLEET_COORDINATION_ROOT/handoffs/` might be personal or from unrelated sessions — safer to prompt per file." | That path IS the legacy destination where non-repo-local handoffs legitimately land via the fallback chain. The surrounding session + resolutions cleanup already scopes the sweep — per-file prompting is not a safer default, it's a misread of what this directory holds. Sweep all. |

@@ -107,3 +107,20 @@ assert_heading() {
     run grep -F "shared/messaging.md" "${SKILL}"
     [ "$status" -eq 0 ]
 }
+
+# --- cold-start / resume branch (F-J) ---------------------------------------
+
+@test "skill-load section mentions xfleet bootstrap" {
+    run grep -F "xfleet bootstrap" "${SKILL}"
+    [ "$status" -eq 0 ]
+}
+
+@test "skill-load section distinguishes cold-start" {
+    run grep -F "cold-start" "${SKILL}"
+    [ "$status" -eq 0 ]
+}
+
+@test "skill-load section distinguishes resume path" {
+    run grep -E "resume" "${SKILL}"
+    [ "$status" -eq 0 ]
+}

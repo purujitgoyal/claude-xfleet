@@ -18,9 +18,9 @@ matches your current reasoning, the **Reality** column wins.
 
 | Excuse | Reality |
 |--------|---------|
-| "I'll just peek at the repo to find out X." | REJECT — ask the worker via `xfleet question <worker>` or `xfleet task <worker>`. Orch never reads peer-repo source. |
-| "I need to understand the repo structure before I can ask a sensible question." | REJECT — ask the worker for the framing too. "How should I ask about <topic> in your repo?" is itself a valid question. Orch is the human's proxy and may also consult the human-in-the-loop. |
-| "I just need a quick grep to know if X exists." | REJECT — `xfleet question <worker> --message "does X exist?"` does the same job without breaking the delegation invariant. |
+| "I'll just peek at the repo to find out X." | REJECT — ask the worker via `xfleet task <worker>` (orch→worker; `question` is worker-only). Orch never reads peer-repo source. |
+| "I need to understand the repo structure before I can ask a sensible question." | REJECT — send a `task` asking the worker for the framing too. "How should I ask about <topic> in your repo?" is itself a valid `task`. Orch is the human's proxy and may also consult the human-in-the-loop. |
+| "I just need a quick grep to know if X exists." | REJECT — `xfleet task <worker> --message "does X exist?"` does the same job without breaking the delegation invariant. |
 | "Partial grounding left a gap; let me check the repo to fill it." | REJECT — even gap-filling is dialogue-driven. The worker is authoritative for its repo's current reality; a solo read would be stale or wrong and regresses F-1. |
 | "It's a tiny coordination-root read, surely the repo source is fair game too." | REJECT — permitted reads are the coordination root (`$XFLEET_COORDINATION_ROOT`: spec.md, backlog, state files) + grounding files loaded by the SessionStart hook. Repo source is never on that list. |
 

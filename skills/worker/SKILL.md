@@ -231,13 +231,14 @@ Rationalizations-to-Reject: `references/rationalizations.md` → "Asymmetry Push
 
 ## Skill-Load + Standby Semantics
 
-On skill load, the worker reads its config and state, refreshes the peer roster
-from session state, and publishes initial state under `$XFLEET_COORDINATION_ROOT`.
-On resume (session reopened, with or without `/clear`), it reconstructs from the
-on-disk state + most recent handoff rather than re-initializing — it never re-runs
-prepare-handoff or resets `status` on resume. (Its repo path is its working
-directory, not a stored state field — see `state-schema.md`; repo paths for the
-fleet live in `roster.json`.)
+On a fresh `/worker` invocation (cold-start, no `--resume`), run `xfleet bootstrap`
+to write the initial `{worker}.json` before starting the listener. The command
+refuses if state already exists, so it is safe to call unconditionally on cold-start.
+On resume (session reopened, with or without `/clear`), do NOT bootstrap —
+reconstruct from on-disk state + most recent handoff instead (existing behavior;
+never re-run prepare-handoff or reset `status` on resume). (Its repo path is its
+working directory, not a stored state field — see `state-schema.md`; repo paths for
+the fleet live in `roster.json`.)
 
 **Standby is a self-drive gate, not an inbox gate (F-58).** Standby suppresses
 **only** the auto-continue of dormant in-flight tasks. Orchestrator inbound is

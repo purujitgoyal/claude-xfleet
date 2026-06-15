@@ -50,10 +50,12 @@ On a fresh `/xfleet:orchestrator` invocation (not a resume):
 
 1. **Parse the invocation** — extract the comma-separated `repos` list, the
    optional `spec-path`, and the required `--slug`.
-2. **Write the roster** — run `xfleet session-init --slug <slug> <repos>` to
-   create `$XFLEET_COORDINATION_ROOT/roster.json`. The orchestrator owns the
-   roster; `session-init` resolves each repo name to an absolute path via the
-   `repos` registry in `~/.config/xfleet/config.json`. If a name is not
+2. **Write the roster** — run `xfleet session-init --slug <slug> <repos>` (where
+   `<repos>` is a single comma-separated string, e.g. `oracle,server` — not
+   multiple positional args; the CLI takes exactly one positional and rejects a
+   second) to create `$XFLEET_COORDINATION_ROOT/roster.json`. The orchestrator
+   owns the roster; `session-init` resolves each repo name to an absolute path
+   via the `repos` registry in `~/.config/xfleet/config.json`. If a name is not
    registered there, surface the command's error to the human — do not guess a
    path.
 3. **Connect to Slack** — call the slack-channel plugin `connect` to register
@@ -65,10 +67,10 @@ On a fresh `/xfleet:orchestrator` invocation (not a resume):
 `session-init` entirely. Do not re-initialize a roster that was written by the
 original invocation.
 
-**First-session grounding note**: grounding loads empty on the very first
-session. The SessionStart hook runs before `session-init`, and `grounding.md` is
-produced later during qa-spec onboarding — an empty grounding file at startup is
-expected, not an error.
+**First-session grounding note**: on the very first session, `roster.json` does
+not yet exist — the SessionStart grounding hook skips grounding output and emits
+a warning instead. This is expected; `grounding.md` is produced later, during
+qa-spec onboarding.
 
 ## Autonomous Execution
 

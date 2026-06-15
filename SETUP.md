@@ -91,6 +91,8 @@ The setup script writes your root to `config.json` (step 2). Export `XFLEET_COOR
 
 Add one entry per repo that will participate in xfleet coordination; the value must be an absolute path. The operator maintains this object manually — the setup script does not populate it. Passing an unregistered name to `xfleet session-init` is an error; the command will surface the failure rather than guessing a path.
 
+The config directory can be overridden with `$XFLEET_CONFIG_DIR` (default `~/.config/xfleet`); `xfleet session-init` reads the registry from `$XFLEET_CONFIG_DIR/config.json`.
+
 ## No Auto-Configuration
 
 The plugin does not auto-configure any repo. The operator declares the coordination root exactly once via this script. Until setup is run (or `$XFLEET_COORDINATION_ROOT` is set), no xfleet subcommand will function.
